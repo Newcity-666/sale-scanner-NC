@@ -254,7 +254,7 @@
     const qty = parseInt(document.getElementById('qty-input').value) || 1;
 
     if (!barcode) return;
-    if (cart.length >= 10) { alert("เพิ่มได้สูงสุด 10 รายการต่อบิลครับ"); return; }
+    if (cart.length >= 10) { alert("เพิ่มได้สูงสุด 10 รายการต่อบิล"); return; }
 
     const existingIndex = cart.findIndex(item => item.barcode === barcode);
     if (existingIndex > -1) {
@@ -317,7 +317,7 @@
     .then(res => res.json())
     .then(res => {
       document.getElementById('btnSubmit').disabled = false;
-      document.getElementById('btnSubmit').innerText = "✅ จบบิล";
+      document.getElementById('btnSubmit').innerText = "จบบิล";
 
       if (res.success) {
         alert(`บันทึกเรียบร้อย!\nเลขที่บิล: ${res.billId}`);
@@ -329,7 +329,7 @@
     })
     .catch(err => {
       document.getElementById('btnSubmit').disabled = false;
-      document.getElementById('btnSubmit').innerText = "✅ จบบิล";
+      document.getElementById('btnSubmit').innerText = "จบบิล";
       alert("ไม่สามารถบันทึกได้ โปรดตรวจสอบอินเทอร์เน็ตหรือ Web App URL");
       console.error(err);
     });
