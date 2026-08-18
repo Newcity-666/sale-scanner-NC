@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SALES SCAN SYSTEM</title>
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eef2f5; padding: 8px; margin: 0; font-size: 14px; }
+    
+    .card { background: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 420px; margin: 5px auto; padding: 14px; border: 1px solid #dcdfe6; }
+    .header-title { background: #1a365d; color: white; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; border-radius: 8px 8px 0 0; margin: -14px -14px 12px -14px; }
+    
+    .form-group { margin-bottom: 10px; }
+    label { font-weight: 600; font-size: 13px; color: #2d3748; display: block; margin-bottom: 4px; }
+    input[type="text"], input[type="number"] { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; outline: none; }
+    
+    .scanner-container { position: relative; width: 100%; height: 200px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
+    #video-preview { width: 100%; height: 100%; object-fit: cover; }
+    .scanner-laser { position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: red; box-shadow: 0 0 8px red; animation: scan 1.5s infinite alternate; }
+    @keyframes scan { 0% { top: 20%; } 100% { top: 80%; } }
+
+    .btn-scan { background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; width: 100%; box-shadow: 0 2px 5px rgba(43, 108, 176, 0.2); }
+    .btn-scan.active { background: #e53e3e; }
+    
+    .info-card { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin: 10px 0; }
+    .info-row { display: flex; margin-bottom: 4px; font-size: 13px; }
+    .info-row:last-child { margin-bottom: 0; }
+    .info-label { width: 70px; font-weight: bold; color: #4a5568; }
+    .info-value { flex: 1; color: #1a202c; font-weight: bold; word-break: break-word; }
+    .status-notFound { color: #e53e3e; }
+    .status-loading { color: #d69e2e; }
+    
+    .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .qty-input { width: 70px !important; text-align: center; font-weight: bold; font-size: 16px !important; padding: 6px !important; }
+    
+    .action-buttons { display: flex; gap: 8px; }
+    .btn-add { flex: 1; background: #319795; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .btn-add:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
+    .btn-finish { flex: 1; background: #38a169; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    
+    .cart-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    .cart-table th { background: #edf2f7; text-align: left; padding: 6px; border: 1px solid #cbd5e0; }
+    .cart-table td { padding: 6px; border: 1px solid #e2e8f0; }
+    .btn-del { background: #e53e3e; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
+    
+    #process-canvas { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header-title">SALES SCAN SYSTEM</div>
+  
+  <div class="form-group">
+    <label for="branch-input">สาขา:</label>
+    <input type="text" id="branch-input" list="branch-list" placeholder="-- พิมพ์ค้นหาสาขา --">
+    <datalist id="branch-list"></datalist>
+  </div>
+
+  <div class="form-group">
+    <label>สแกนบาร์โค้ด:</label>
+    
+    <div id="scanner-box" class="scanner-container">
+      <video id="video-preview"></video>
+      <div class="scanner-laser"></div>
+    </div>
+
+    <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">
+      📷 เปิดกล้องสแกนบาร์โค้ด
+    </button>
+    
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="หรือพิมพ์เลข Barcode ตรงนี้" onchange="lookupBarcode(this.value)">
+  </div>
+
+  <div class="info-card">
+    <div class="info-row">
+      <span class="info-label">SKU:</span>
+      <span class="info-value" id="display-sku">-</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">สินค้า:</span>
+      <span class="info-value" id="display-product">-</span>
+    </div>
+  </div>
+
+  <div class="qty-container">
+    <label style="margin:0;">จำนวน:</label>
+    <input type="number" id="qty-input" class="qty-input" value="1" min="1">
+  </div>
+
+  <div class="action-buttons">
+    <button class="btn-add" id="btnAdd" onclick="addToCart()" disabled>+ เพิ่มรายการ</button>
+    <button class="btn-finish" id="btnSubmit" onclick="submitBill()">จบบิล</button>
+  </div>
+
+  <div style="margin-top: 12px; font-weight: bold; font-size: 13px;">
+    รายการในบิล (<span id="cart-count">0</span>/10)
+  </div>
+  <table class="cart-table">
+    <thead>
+      <tr>
+        <th>Barcode</th>
+        <th>สินค้า</th>
+        <th style="width: 40px; text-align:center;">จำนวน</th>
+        <th style="width: 30px;"></th>
+      </tr>
+    </thead>
+    <tbody id="cart-list"></tbody>
+  </table>
+</div>
+
+<canvas id="process-canvas"></canvas>
+
+<script>
+  // 🔴 นำ Web App URL ที่ได้จาก Google Apps Script มาวางตรงนี้ 🔴
+  const API_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+
+  let currentProductData = null;
+  let cart = [];
+  let isScanning = false;
+  let videoStream = null;
+  let scanInterval = null;
+  let zxingReader = null;
+
+  window.onload = function() { 
+    loadStoreList(); 
+    zxingReader = new ZXing.BrowserMultiFormatReader();
+  };
+
+  function loadStoreList() {
+    fetch(`${API_URL}?action=getStores`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.stores) {
+          const datalist = document.getElementById('branch-list');
+          datalist.innerHTML = '';
+          data.stores.forEach(store => {
+            const opt = document.createElement('option');
+            opt.value = store;
+            datalist.appendChild(opt);
+          });
+        }
+      });
+  }
+
+  function toggleScanner() {
+    if (isScanning) stopScanner();
+    else startScanner();
+  }
+
+  function startScanner() {
+    const scannerBox = document.getElementById('scanner-box');
+    const btn = document.getElementById('btnToggleScan');
+    const video = document.getElementById('video-preview');
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(function(stream) {
+        videoStream = stream;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", true);
+        video.play();
+        
+        scannerBox.style.display = "block";
+        btn.innerText = "🛑 ปิดกล้อง";
+        btn.classList.add("active");
+        isScanning = true;
+
+        scanInterval = setInterval(processFrameAndDecode, 200);
+      })
+      .catch(function(err) {
+        alert("ไม่สามารถเข้าถึงกล้องได้: " + err);
+      });
+  }
+
+  function stopScanner() {
+    if (scanInterval) clearInterval(scanInterval);
+    if (videoStream) videoStream.getTracks().forEach(track => track.stop());
+    
+    document.getElementById('scanner-box').style.display = "none";
+    const btn = document.getElementById('btnToggleScan');
+    btn.innerText = "📷 เปิดกล้องสแกนบาร์โค้ด";
+    btn.classList.remove("active");
+    isScanning = false;
+  }
+
+  function processFrameAndDecode() {
+    const video = document.getElementById('video-preview');
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+    const canvas = document.getElementById('process-canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    applyOtsuThreshold(ctx, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const img = new Image();
+    img.src = dataUrl;
+    img.onload = () => {
+      zxingReader.decodeFromImageElement(img)
+        .then(result => {
+          if (result && result.text) {
+            stopScanner();
+            onScanSuccess(result.text);
+          }
+        })
+        .catch(() => {});
+    };
+  }
+
+  function applyOtsuThreshold(ctx, width, height) {
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const data = imgData.data;
+    const histogram = new Array(256).fill(0);
+
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
+      data[i] = gray;
+      histogram[gray]++;
+    }
+
+    const totalPixels = width * height;
+    let sum = 0;
+    for (let i = 0; i < 256; i++) sum += i * histogram[i];
+
+    let sumB = 0, wB = 0, wF = 0, varMax = 0, threshold = 128;
+
+    for (let t = 0; t < 256; t++) {
+      wB += histogram[t];
+      if (wB === 0) continue;
+      wF = totalPixels - wB;
+      if (wF === 0) break;
+
+      sumB += t * histogram[t];
+      const mB = sumB / wB;
+      const mF = (sum - sumB) / wF;
+
+      const varBetween = wB * wF * (mB - mF) * (mB - mF);
+      if (varBetween > varMax) {
+        varMax = varBetween;
+        threshold = t;
+      }
+    }
+
+    for (let i = 0; i < data.length; i += 4) {
+      const v = data[i] >= threshold ? 255 : 0;
+      data[i] = v;
+      data[i+1] = v;
+      data[i+2] = v;
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  function onScanSuccess(barcodeText) {
+    document.getElementById('barcode-input').value = barcodeText;
+    lookupBarcode(barcodeText);
+    if (navigator.vibrate) navigator.vibrate(100);
+  }
+
+  function lookupBarcode(barcode) {
+    const cleanBarcode = barcode ? barcode.trim() : '';
+    if (!cleanBarcode) {
+      resetDisplayInfo();
+      return;
+    }
+
+    setLoadingState(true, "⏳ กำลังดึงข้อมูล SKU...");
+
+    fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
+      .then(res => res.json())
+      .then(res => {
+        if (res && res.found) {
+          currentProductData = res;
+          document.getElementById('display-sku').innerText = res.sku || '-';
+          document.getElementById('display-sku').className = "info-value";
+          document.getElementById('display-product').innerText = res.product || '-';
+          setLoadingState(false);
+        } else {
+          currentProductData = { barcode: cleanBarcode, sku: '-', product: 'ไม่พบข้อมูล' };
+          document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
+          document.getElementById('display-sku').className = "info-value status-notFound";
+          document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode นี้ในระบบ M.DATA";
+          setLoadingState(false);
+        }
+      });
+  }
+
+  function setLoadingState(isLoading, message) {
+    const btnAdd = document.getElementById('btnAdd');
+    if (isLoading) {
+      btnAdd.disabled = true;
+      btnAdd.innerText = message || "⏳ กำลังดึงข้อมูล...";
+      document.getElementById('display-sku').innerText = "⏳...";
+      document.getElementById('display-sku').className = "info-value status-loading";
+      document.getElementById('display-product').innerText = "⏳...";
+    } else {
+      btnAdd.disabled = false;
+      btnAdd.innerText = "+ เพิ่มรายการ";
+    }
+  }
+
+  function resetDisplayInfo() {
+    document.getElementById('display-sku').innerText = "-";
+    document.getElementById('display-sku').className = "info-value";
+    document.getElementById('display-product').innerText = "-";
+    document.getElementById('btnAdd').disabled = true;
+    document.getElementById('btnAdd').innerText = "+ เพิ่มรายการ";
+    currentProductData = null;
+  }
+
+  function addToCart() {
+    const barcode = document.getElementById('barcode-input').value.trim();
+    const qty = parseInt(document.getElementById('qty-input').value) || 1;
+
+    if (!barcode) return;
+    if (cart.length >= 10) { alert("เพิ่มได้สูงสุด 10 รายการต่อบิลครับ"); return; }
+
+    const existingIndex = cart.findIndex(item => item.barcode === barcode);
+    if (existingIndex > -1) {
+      cart[existingIndex].quantity += qty;
+    } else {
+      cart.push({
+        barcode: barcode,
+        sku: currentProductData ? currentProductData.sku : '-',
+        product: currentProductData ? currentProductData.product : 'ไม่พบข้อมูล',
+        quantity: qty
+      });
+    }
+
+    renderCart();
+    document.getElementById('barcode-input').value = '';
+    resetDisplayInfo();
+    document.getElementById('qty-input').value = '1';
+  }
+
+  function renderCart() {
+    const tbody = document.getElementById('cart-list');
+    tbody.innerHTML = '';
+    cart.forEach((item, index) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><b>${item.barcode}</b></td>
+        <td>${item.product}</td>
+        <td style="text-align:center;"><b>${item.quantity}</b></td>
+        <td style="text-align:center;"><button class="btn-del" onclick="removeFromCart(${index})">X</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('cart-count').innerText = cart.length;
+  }
+
+  function removeFromCart(index) {
+    cart.splice(index, 1);
+    renderCart();
+  }
+
+  function submitBill() {
+    const branch = document.getElementById('branch-input').value.trim();
+    if (!branch) { alert("กรุณาเลือกหรือพิมพ์ชื่อสาขาก่อนครับ"); return; }
+    if (cart.length === 0) { alert("กรุณาเพิ่มอย่างน้อย 1 รายการเข้าบิลครับ"); return; }
+
+    document.getElementById('btnSubmit').disabled = true;
+    document.getElementById('btnAdd').disabled = true;
+    document.getElementById('btnSubmit').innerText = "⏳ บันทึก...";
+
+    const payload = { branch: branch, items: cart };
+
+    fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(res => {
+      document.getElementById('btnSubmit').disabled = false;
+      document.getElementById('btnSubmit').innerText = "จบบิล";
+
+      if (res.success) {
+        alert(`บันทึกเรียบร้อย!\nเลขที่บิล: ${res.billId}`);
+        cart = [];
+        renderCart();
+      } else {
+        alert("เกิดข้อผิดพลาด: " + res.error);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
