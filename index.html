@@ -86,7 +86,7 @@
   
   <div class="form-group">
     <label for="branch-input">สาขา:</label>
-    <input type="text" id="branch-input" list="branch-list" placeholder="-- พิมพ์ค้นหาสาขา --">
+    <input type="text" id="branch-input" list="branch-list" placeholder="-- กรอกสาขา --">
     <datalist id="branch-list"></datalist>
   </div>
 
@@ -105,7 +105,7 @@
       📷 Scan Barcode
     </button>
     
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="หรือพิมพ์เลข Barcode ตรงนี้แล้วกด Enter" onchange="lookupBarcode(this.value)">
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="พิมพ์เลข Barcode" onchange="lookupBarcode(this.value)">
   </div>
 
   <div class="info-card">
@@ -153,21 +153,21 @@
   let cart = [];
   let isScanning = false;
   let codeReader = null;
+  let scanTimeoutTimer = null; // ตัวแปรคุม Watchdog Timer 10 วินาที
 
-window.onload = function() { 
+  window.onload = function() { 
     loadStoreList(); 
 
-    // กำหนดประเภทบาร์โค้ดแท่งให้ระบบเน้นอ่านเฉพาะบาร์โค้ดสินค้า (ทำงานไวขึ้น 2-3 เท่า)
+    // กำหนดประเภทบาร์โค้ดแท่งเน้นเฉพาะ EAN-13
     const hints = new Map();
-    const possibleFormats = [
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
       ZXing.BarcodeFormat.EAN_13
-    ];
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, possibleFormats);
+    ]);
 
     codeReader = new ZXing.BrowserMultiFormatReader(hints);
   };
   
-  // --- 1. ปรับปรุงการโหลดสาขา (เพิ่ม Error Handling) ---
+  // --- 1. การโหลดสาขา ---
   function loadStoreList() {
     fetch(`${API_URL}?action=getStores`)
       .then(res => res.json())
@@ -185,7 +185,7 @@ window.onload = function() {
       .catch(err => console.error("ไม่สามารถโหลดข้อมูลสาขาได้:", err));
   }
 
-  // --- 2. Scanner V2: เน้นความเร็ว + Barcode ใหญ่ในกรอบ ---
+  // --- 2. Scanner V3: Auto-Reset 10 วินาที + บีบ Resolution เพื่อความลื่นไหล ---
   let lastScannedCode = "";
   let lastScanTime = 0;
   let scanLocked = false;
@@ -195,12 +195,27 @@ window.onload = function() {
     else startScanner();
   }
 
+  function resetScanTimeout() {
+    if (scanTimeoutTimer) clearTimeout(scanTimeoutTimer);
+    
+    // ตั้งเวลา 10 วินาที ถ้ายังหาไม่พบ ให้รีเซ็ตกล้องใหม่อัตโนมัติป้องกันอาการกล้องค้าง
+    scanTimeoutTimer = setTimeout(() => {
+      if (isScanning) {
+        console.warn("สแกนไม่ติดเกิน 10 วินาที ทำการรีเซ็ตกล้องใหม่อัตโนมัติ...");
+        stopScanner();
+        setTimeout(() => { startScanner(); }, 300);
+      }
+    }, 10000);
+  }
+
   async function startScanner() {
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
 
     if (!codeReader) {
-      codeReader = new ZXing.BrowserMultiFormatReader();
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13]);
+      codeReader = new ZXing.BrowserMultiFormatReader(hints);
     }
 
     scannerBox.style.display = "block";
@@ -209,15 +224,17 @@ window.onload = function() {
     isScanning = true;
     scanLocked = false;
 
+    resetScanTimeout();
+
     try {
-      // ขอภาพที่เหมาะกับการสแกน Barcode โดยไม่ดัน resolution สูงเกินจำเป็น
+      // กำหนดความละเอียดระดับพอเหมาะ เพื่อไม่ให้กินสเปกมือถือรุ่นล่างเกินไป
       const constraints = {
         audio: false,
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          frameRate: { ideal: 30, max: 30 }
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
+          frameRate: { ideal: 25, max: 30 }
         }
       };
 
@@ -234,7 +251,6 @@ window.onload = function() {
 
           const now = Date.now();
 
-          // กันการอ่านค่าเดิมซ้ำในช่วงสั้น ๆ
           if (text === lastScannedCode && (now - lastScanTime) < 1000) {
             return;
           }
@@ -247,7 +263,7 @@ window.onload = function() {
         }
       );
 
-      // พยายามตั้ง continuous autofocus ถ้า browser/device รองรับ
+      // ตั้งค่า Continuous Autofocus ถ้าอุปกรณ์รองรับ
       const video = document.getElementById('video-preview');
       if (video && video.srcObject) {
         const tracks = video.srcObject.getVideoTracks();
@@ -278,6 +294,11 @@ window.onload = function() {
   }
 
   function stopScanner() {
+    if (scanTimeoutTimer) {
+      clearTimeout(scanTimeoutTimer);
+      scanTimeoutTimer = null;
+    }
+
     if (codeReader) {
       try {
         codeReader.reset();
@@ -288,7 +309,6 @@ window.onload = function() {
 
     const video = document.getElementById('video-preview');
 
-    // ปิด MediaStream ให้แน่นอน
     if (video && video.srcObject) {
       video.srcObject.getTracks().forEach(track => track.stop());
       video.srcObject = null;
@@ -305,12 +325,10 @@ window.onload = function() {
   }
 
   function onScanSuccess(barcodeText) {
-    // เจอแล้วหยุดทันทีตามที่ต้องการ
     stopScanner();
 
     document.getElementById('barcode-input').value = barcodeText;
 
-    // สั่นทันทีเมื่ออ่านสำเร็จ
     if (navigator.vibrate) {
       navigator.vibrate(200);
     }
@@ -318,7 +336,7 @@ window.onload = function() {
     lookupBarcode(barcodeText);
   }
 
-  // --- 3. ปรับปรุงการค้นหา Barcode (ดัก Error เว็บพัง / เน็ตหลุด) ---
+  // --- 3. การค้นหา Barcode ---
   function lookupBarcode(barcode) {
     const cleanBarcode = barcode ? barcode.trim() : '';
     if (!cleanBarcode) {
@@ -344,7 +362,7 @@ window.onload = function() {
           currentProductData = { barcode: cleanBarcode, sku: '-', product: 'ไม่พบข้อมูล' };
           document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
           document.getElementById('display-sku').className = "info-value status-notFound";
-          document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode นี้ในระบบ (สามารถกดเพิ่มได้)";
+          document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ กรุณาตรวจสอบ Barcode อีกครั้ง";
           setLoadingState(false);
         }
       })
@@ -402,7 +420,7 @@ window.onload = function() {
     document.getElementById('barcode-input').value = '';
     resetDisplayInfo();
     document.getElementById('qty-input').value = '1';
-    document.getElementById('barcode-input').focus(); // ให้พร้อมสแกน/พิมพ์ชิ้นต่อไปทันที
+    document.getElementById('barcode-input').focus();
   }
 
   function renderCart() {
@@ -426,11 +444,11 @@ window.onload = function() {
     renderCart();
   }
 
-  // --- 4. ปรับปรุงการบันทึกข้อมูล (แก้ปัญหา CORS Blocked) ---
+  // --- 4. การบันทึกข้อมูล ---
   function submitBill() {
     const branch = document.getElementById('branch-input').value.trim();
-    if (!branch) { alert("กรุณาเลือกหรือพิมพ์ชื่อสาขาก่อนครับ"); return; }
-    if (cart.length === 0) { alert("กรุณาเพิ่มอย่างน้อย 1 รายการเข้าบิลครับ"); return; }
+    if (!branch) { alert("กรุณากรอกชื่อสาขา"); return; }
+    if (cart.length === 0) { alert("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ"); return; }
 
     document.getElementById('btnSubmit').disabled = true;
     document.getElementById('btnAdd').disabled = true;
@@ -438,7 +456,6 @@ window.onload = function() {
 
     const payload = { branch: branch, items: cart };
 
-    // ใช้ Content-Type: text/plain เพื่อข้ามกฎ CORS ของ Google Apps Script
     fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
