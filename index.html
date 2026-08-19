@@ -12,17 +12,17 @@
       -webkit-text-size-adjust: 100%;
     }
 
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eef2f5; padding: 8px; margin: 0; font-size: 14px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eef2f5; padding: 8px; margin: 0; font-size: 15px; }
     
-    .card { background: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 420px; margin: 5px auto; padding: 14px; border: 1px solid #dcdfe6; }
-    .header-title { background: #1a365d; color: white; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; border-radius: 8px 8px 0 0; margin: -14px -14px 12px -14px; }
+    .card { background: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 440px; margin: 5px auto; padding: 14px; border: 1px solid #dcdfe6; }
+    .header-title { background: #1a365d; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 18px; border-radius: 8px 8px 0 0; margin: -14px -14px 12px -14px; }
     
-    .form-group { margin-bottom: 10px; }
-    label { font-weight: 600; font-size: 13px; color: #2d3748; display: block; margin-bottom: 4px; }
+    .form-group { margin-bottom: 12px; }
+    label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
     input[type="text"], input[type="number"] { 
       width: 100%; 
-      padding: 8px 10px; 
+      padding: 10px; 
       border: 1px solid #cbd5e0; 
       border-radius: 6px; 
       font-size: 16px !important; 
@@ -63,37 +63,37 @@
       bottom: 8px;
       text-align: center;
       color: white;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       text-shadow: 0 1px 3px #000;
       transition: color 0.2s;
     }
     @keyframes scan { 0% { transform: translateY(-55px); } 100% { transform: translateY(55px); } }
 
-    .btn-scan { background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; width: 100%; box-shadow: 0 2px 5px rgba(43, 108, 176, 0.2); }
+    .btn-scan { background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; width: 100%; box-shadow: 0 2px 5px rgba(43, 108, 176, 0.2); }
     .btn-scan.active { background: #e53e3e; }
     
-    .info-card { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin: 10px 0; }
-    .info-row { display: flex; margin-bottom: 4px; font-size: 13px; }
+    .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
+    .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
     .info-row:last-child { margin-bottom: 0; }
-    .info-label { width: 70px; font-weight: bold; color: #4a5568; }
-    .info-value { flex: 1; color: #1a202c; font-weight: bold; word-break: break-word; }
-    .status-notFound { color: #e53e3e; }
+    .info-label { width: 75px; font-weight: bold; color: #4a5568; }
+    .info-value { flex: 1; color: #000000; font-weight: bold; word-break: break-word; font-size: 17px; }
+    .status-notFound { color: #e53e3e; font-size: 15px; }
     .status-loading { color: #d69e2e; }
     
-    .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .qty-input { width: 70px !important; text-align: center; font-weight: bold; font-size: 16px !important; padding: 6px !important; }
+    .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .qty-input { width: 90px !important; text-align: center; font-weight: bold; font-size: 20px !important; padding: 6px !important; height: 45px; }
     
     .action-buttons { display: flex; gap: 8px; }
-    .btn-add { flex: 1; background: #319795; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .btn-add { flex: 1; background: #319795; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .btn-add:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
-    .btn-finish { flex: 1; background: #38a169; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .btn-finish { flex: 1; background: #38a169; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .btn-finish:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
     
-    .cart-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-    .cart-table th { background: #edf2f7; text-align: left; padding: 6px; border: 1px solid #cbd5e0; }
-    .cart-table td { padding: 6px; border: 1px solid #e2e8f0; }
-    .btn-del { background: #e53e3e; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
+    .cart-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+    .cart-table th { background: #edf2f7; text-align: left; padding: 8px; border: 1px solid #cbd5e0; font-size: 14px; }
+    .cart-table td { padding: 8px; border: 1px solid #e2e8f0; color: #1a202c; }
+    .btn-del { background: #e53e3e; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -137,7 +137,7 @@
   </div>
 
   <div class="qty-container">
-    <label style="margin:0;">จำนวน:</label>
+    <label style="margin:0; font-size: 16px;">จำนวน:</label>
     <input type="number" id="qty-input" class="qty-input" value="1" min="1">
   </div>
 
@@ -146,7 +146,7 @@
     <button class="btn-finish" id="btnSubmit" onclick="submitBill()">จบบิล</button>
   </div>
 
-  <div style="margin-top: 12px; font-weight: bold; font-size: 13px;">
+  <div style="margin-top: 14px; font-weight: bold; font-size: 15px;">
     รายการในบิล (<span id="cart-count">0</span>/10)
   </div>
   <table class="cart-table">
@@ -154,8 +154,8 @@
       <tr>
         <th>Barcode</th>
         <th>สินค้า</th>
-        <th style="width: 40px; text-align:center;">จำนวน</th>
-        <th style="width: 30px;"></th>
+        <th style="width: 55px; text-align:center;">จำนวน</th>
+        <th style="width: 35px;"></th>
       </tr>
     </thead>
     <tbody id="cart-list"></tbody>
@@ -163,7 +163,6 @@
 </div>
 
 <script>
-  // 📌 แก้ไขจุดที่ 1: ดักจับเพื่อป้องกัน Double Tap / Double Click ไม่ให้ซูมเข้า
   let lastTouchEnd = 0;
   document.addEventListener('touchend', function (e) {
     const now = (new Date()).getTime();
@@ -173,7 +172,6 @@
     lastTouchEnd = now;
   }, false);
 
-  // URL จาก Apps Script
   const API_URL = "https://script.google.com/macros/s/AKfycbzXoqQQJYtOkUvdsmLKnd_-gw6G37olfCa1SyZl5VwahDSNkYAdsUTaGI6sCIhiW-Mzew/exec";
 
   let currentProductData = null;
@@ -182,21 +180,24 @@
   let codeReader = null;
   let scanTimeoutTimer = null;
 
+  // 📌 เพิ่ม Cache ฝั่งเครื่องพนักงาน (Client Memory Cache)
+  const scannedCache = {};
+
+  function createCodeReader() {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.EAN_8
+    ]);
+    return new ZXing.BrowserMultiFormatReader(hints);
+  }
+
   window.onload = function() { 
     loadStoreList(); 
-
-// ปรับ Hints ให้รองรับ Format สินค้าทั่วไปเพิ่มเติม
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.CODE_128,
-    ZXing.BarcodeFormat.EAN_8
-  ]);
-    
-    codeReader = new ZXing.BrowserMultiFormatReader(hints);
+    codeReader = createCodeReader();
   };
   
-  // --- 1. การโหลดสาขา ---
   function loadStoreList() {
     fetch(`${API_URL}?action=getStores`)
       .then(res => res.json())
@@ -214,7 +215,6 @@
       .catch(err => console.error("ไม่สามารถโหลดข้อมูลสาขาได้:", err));
   }
 
-  // --- 2. Scanner V4: Smooth Soft-Reset ---
   let lastScannedCode = "";
   let lastScanTime = 0;
   let scanLocked = false;
@@ -269,7 +269,7 @@
             if (!isScanning || scanLocked || !result) return;
 
             const text = result.getText().trim();
-            if (!/^\d{13}$/.test(text)) return;
+            if (text.length < 8 || text.length > 18) return;
 
             const now = Date.now();
             if (text === lastScannedCode && (now - lastScanTime) < 1000) return;
@@ -302,9 +302,7 @@
     const btn = document.getElementById('btnToggleScan');
 
     if (!codeReader) {
-      const hints = new Map();
-      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13]);
-      codeReader = new ZXing.BrowserMultiFormatReader(hints);
+      codeReader = createCodeReader();
     }
 
     scannerBox.style.display = "block";
@@ -333,14 +331,10 @@
           if (!isScanning || scanLocked || !result) return;
 
           const text = result.getText().trim();
-
-          if (!/^\d{13}$/.test(text)) return;
+          if (text.length < 8 || text.length > 18) return;
 
           const now = Date.now();
-
-          if (text === lastScannedCode && (now - lastScanTime) < 1000) {
-            return;
-          }
+          if (text === lastScannedCode && (now - lastScanTime) < 1000) return;
 
           lastScannedCode = text;
           lastScanTime = now;
@@ -386,11 +380,7 @@
     }
 
     if (codeReader) {
-      try {
-        codeReader.reset();
-      } catch (e) {
-        console.warn("Scanner reset:", e);
-      }
+      try { codeReader.reset(); } catch (e) {}
     }
 
     const video = document.getElementById('video-preview');
@@ -421,17 +411,12 @@
 
   function onScanSuccess(barcodeText) {
     stopScanner();
-
     document.getElementById('barcode-input').value = barcodeText;
-
-    if (navigator.vibrate) {
-      navigator.vibrate(200);
-    }
-
+    if (navigator.vibrate) navigator.vibrate(200);
     lookupBarcode(barcodeText);
   }
 
-  // --- 3. การค้นหา Barcode ---
+  // 📌 ค้นหาบาร์โค้ดแบบ Fast & Dynamic (Client Cache + Server Cache + Fast Finder)
   function lookupBarcode(barcode) {
     const cleanBarcode = barcode ? barcode.trim() : '';
     if (!cleanBarcode) {
@@ -439,6 +424,24 @@
       return;
     }
 
+    // 1. เช็คความจำในเบราว์เซอร์ก่อน (ถ้าสแกนซ้ำจะขึ้นทันที 0 วินาที)
+    if (scannedCache[cleanBarcode]) {
+      const res = scannedCache[cleanBarcode];
+      currentProductData = res;
+      if (res.found) {
+        document.getElementById('display-sku').innerText = res.sku || '-';
+        document.getElementById('display-sku').className = "info-value";
+        document.getElementById('display-product').innerText = res.product || '-';
+      } else {
+        document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
+        document.getElementById('display-sku').className = "info-value status-notFound";
+        document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ";
+      }
+      setLoadingState(false);
+      return;
+    }
+
+    // 2. ถ้ายังไม่เคยสแกน ยิงไปดึงจาก Server
     setLoadingState(true, "⏳ กำลังดึงข้อมูล...");
 
     fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
@@ -447,6 +450,9 @@
         return res.json();
       })
       .then(res => {
+        // บันทึกลง Client Cache ไว้สแกนรอบถัดไป
+        scannedCache[cleanBarcode] = res;
+
         if (res && res.found) {
           currentProductData = res;
           document.getElementById('display-sku').innerText = res.sku || '-';
@@ -457,7 +463,7 @@
           currentProductData = { barcode: cleanBarcode, sku: '-', product: 'ไม่พบข้อมูล' };
           document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
           document.getElementById('display-sku').className = "info-value status-notFound";
-          document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ กรุณาตรวจสอบ Barcode อีกครั้ง";
+          document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ";
           setLoadingState(false);
         }
       })
@@ -525,7 +531,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><b>${item.barcode}</b></td>
-        <td>${item.product}</td>
+        <td><b>${item.product}</b></td>
         <td style="text-align:center;"><b>${item.quantity}</b></td>
         <td style="text-align:center;"><button class="btn-del" onclick="removeFromCart(${index})">X</button></td>
       `;
@@ -539,7 +545,6 @@
     renderCart();
   }
 
-  // --- 4. การบันทึกข้อมูล ---
   function submitBill() {
     const branch = document.getElementById('branch-input').value.trim();
     if (!branch) { alert("กรุณากรอกชื่อสาขา"); return; }
