@@ -185,11 +185,14 @@
   window.onload = function() { 
     loadStoreList(); 
 
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.EAN_13
-    ]);
-
+// ปรับ Hints ให้รองรับ Format สินค้าทั่วไปเพิ่มเติม
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.EAN_8
+  ]);
+    
     codeReader = new ZXing.BrowserMultiFormatReader(hints);
   };
   
@@ -237,7 +240,7 @@
 
     if (video) video.classList.add('restarting');
     if (hint) {
-      hint.innerText = "🔄 กำลังปรับโฟกัสกล้อง...";
+      hint.innerText = "🔄 กำลังปรับโฟกัส...";
       hint.style.color = "#f6ad55";
     }
 
