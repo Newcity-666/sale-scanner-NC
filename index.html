@@ -122,7 +122,7 @@
       📷 Scan Barcode
     </button>
     
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="พิมพ์เลข Barcode" onchange="lookupBarcode(this.value)">
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onchange="lookupBarcode(this.value)">
   </div>
 
   <div class="info-card">
@@ -163,12 +163,12 @@
 </div>
 
 <script>
-  // 📌 แก้ไขจุดที่ 1: ดักจับเพื่อป้องกัน Double Tap / Double Click ไม่ให้ซูมเข้า (แต่ยังถ่างนิ้วซูมได้)
+  // 📌 แก้ไขจุดที่ 1: ดักจับเพื่อป้องกัน Double Tap / Double Click ไม่ให้ซูมเข้า
   let lastTouchEnd = 0;
   document.addEventListener('touchend', function (e) {
     const now = (new Date()).getTime();
     if (now - lastTouchEnd <= 300) {
-      e.preventDefault(); // บล็อกถ้ามีการแตะซ้ำติดกันสองครั้ง
+      e.preventDefault();
     }
     lastTouchEnd = now;
   }, false);
