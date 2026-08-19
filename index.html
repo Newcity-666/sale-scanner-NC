@@ -17,7 +17,11 @@
     input[type="text"], input[type="number"] { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; outline: none; }
     
     .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
-    #video-preview { width: 100%; height: 100%; object-fit: cover; transform: translateZ(0); }
+    #video-preview { width: 100%; height: 100%; object-fit: cover; transform: translateZ(0); transition: opacity 0.2s ease; }
+    
+    /* เอฟเฟกต์กระพริบภาพวิดีโอเมื่อสั่ง Soft-Reset */
+    #video-preview.restarting { opacity: 0.2; }
+
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; }
     .scanner-guide {
       position: absolute;
@@ -50,6 +54,7 @@
       font-size: 12px;
       font-weight: 600;
       text-shadow: 0 1px 3px #000;
+      transition: color 0.2s;
     }
     @keyframes scan { 0% { transform: translateY(-55px); } 100% { transform: translateY(55px); } }
 
@@ -97,7 +102,7 @@
       <video id="video-preview" autoplay playsinline muted></video>
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
-        <div class="scanner-hint">วาง Barcode ให้เต็มกรอบประมาณ 50–60%</div>
+        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้เต็มกรอบประมาณ 50–60%</div>
       </div>
     </div>
 
@@ -153,7 +158,7 @@
   let cart = [];
   let isScanning = false;
   let codeReader = null;
-  let scanTimeoutTimer = null; // ตัวแปรคุม Watchdog Timer 10 วินาที
+  let scanTimeoutTimer = null;
 
   window.onload = function() { 
     loadStoreList(); 
@@ -185,7 +190,7 @@
       .catch(err => console.error("ไม่สามารถโหลดข้อมูลสาขาได้:", err));
   }
 
-  // --- 2. Scanner V3: Auto-Reset 10 วินาที + บีบ Resolution เพื่อความลื่นไหล ---
+  // --- 2. Scanner V4: Smooth Soft-Reset (กระพริบกล้องแบบไม่เด้งออก) ---
   let lastScannedCode = "";
   let lastScanTime = 0;
   let scanLocked = false;
@@ -198,14 +203,80 @@
   function resetScanTimeout() {
     if (scanTimeoutTimer) clearTimeout(scanTimeoutTimer);
     
-    // ตั้งเวลา 10 วินาที ถ้ายังหาไม่พบ ให้รีเซ็ตกล้องใหม่อัตโนมัติป้องกันอาการกล้องค้าง
+    // ตั้งเวลา 10 วินาที เมื่อยังสแกนไม่ติด ให้สั่ง Soft-Reset เบื้องหลัง
     scanTimeoutTimer = setTimeout(() => {
       if (isScanning) {
-        console.warn("สแกนไม่ติดเกิน 10 วินาที ทำการรีเซ็ตกล้องใหม่อัตโนมัติ...");
-        stopScanner();
-        setTimeout(() => { startScanner(); }, 300);
+        softResetCamera();
       }
     }, 10000);
+  }
+
+  // ฟังก์ชันรีเซ็ตแบบนุ่มนวล คงหน้าต่างสแกนและปุ่มไว้ตามเดิม
+  async function softResetCamera() {
+    const video = document.getElementById('video-preview');
+    const hint = document.getElementById('scanner-hint');
+
+    // 1. เพิ่ม Effect กระพริบภาพเบาๆ พร้อมแจ้งเตือนผู้ใช้
+    if (video) video.classList.add('restarting');
+    if (hint) {
+      hint.innerText = "🔄 กำลังปรับโฟกัสกล้อง...";
+      hint.style.color = "#f6ad55";
+    }
+
+    // 2. หยุดตัวอ่านบาร์โค้ดเดิม
+    if (codeReader) {
+      try { codeReader.reset(); } catch(e) {}
+    }
+
+    // 3. รอเพียง 0.2 วินาที แล้วเริ่มกระบวนการสแกนใหม่
+    setTimeout(async () => {
+      if (!isScanning) return;
+
+      try {
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 },
+            frameRate: { ideal: 25, max: 30 }
+          }
+        };
+
+        await codeReader.decodeFromConstraints(
+          constraints,
+          'video-preview',
+          (result, err) => {
+            if (!isScanning || scanLocked || !result) return;
+
+            const text = result.getText().trim();
+            if (!/^\d{13}$/.test(text)) return;
+
+            const now = Date.now();
+            if (text === lastScannedCode && (now - lastScanTime) < 1000) return;
+
+            lastScannedCode = text;
+            lastScanTime = now;
+            scanLocked = true;
+
+            onScanSuccess(text);
+          }
+        );
+
+        // คืนค่าหน้าจอการสแกนตามปกติ
+        if (video) video.classList.remove('restarting');
+        if (hint) {
+          hint.innerText = "วาง Barcode ให้เต็มกรอบประมาณ 50–60%";
+          hint.style.color = "white";
+        }
+
+        resetScanTimeout(); // เริ่มนับเวลา 10 วินาทีรอบใหม่
+
+      } catch (err) {
+        console.error("Soft-reset Error:", err);
+        stopScanner();
+      }
+    }, 200);
   }
 
   async function startScanner() {
@@ -227,7 +298,6 @@
     resetScanTimeout();
 
     try {
-      // กำหนดความละเอียดระดับพอเหมาะ เพื่อไม่ให้กินสเปกมือถือรุ่นล่างเกินไป
       const constraints = {
         audio: false,
         video: {
@@ -246,7 +316,6 @@
 
           const text = result.getText().trim();
 
-          // บริษัทใช้ Barcode เป็นตัวเลข 13 หลัก
           if (!/^\d{13}$/.test(text)) return;
 
           const now = Date.now();
@@ -309,9 +378,12 @@
 
     const video = document.getElementById('video-preview');
 
-    if (video && video.srcObject) {
-      video.srcObject.getTracks().forEach(track => track.stop());
-      video.srcObject = null;
+    if (video) {
+      video.classList.remove('restarting');
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
     }
 
     document.getElementById('scanner-box').style.display = "none";
@@ -319,6 +391,12 @@
     const btn = document.getElementById('btnToggleScan');
     btn.innerText = "📷 Scan Barcode";
     btn.classList.remove("active");
+
+    const hint = document.getElementById('scanner-hint');
+    if (hint) {
+      hint.innerText = "วาง Barcode ให้เต็มกรอบประมาณ 50–60%";
+      hint.style.color = "white";
+    }
 
     isScanning = false;
     scanLocked = false;
