@@ -81,9 +81,28 @@
     .status-notFound { color: #e53e3e; font-size: 15px; }
     .status-loading { color: #d69e2e; }
     
+    /* 📌 ส่วนควบคุมจำนวน + / - บนมือถือ */
     .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .qty-input { width: 90px !important; text-align: center; font-weight: bold; font-size: 20px !important; padding: 6px !important; height: 45px; }
-    
+    .qty-control { display: flex; align-items: center; gap: 6px; }
+    .qty-input { width: 80px !important; text-align: center; font-weight: bold; font-size: 20px !important; padding: 6px !important; height: 45px; }
+    .btn-qty {
+      width: 45px;
+      height: 45px;
+      background: #cbd5e0;
+      color: #2d3748;
+      border: none;
+      border-radius: 6px;
+      font-size: 22px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-qty:active { background: #a0aec0; }
+
     .action-buttons { display: flex; gap: 8px; }
     .btn-add { flex: 1; background: #319795; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .btn-add:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
@@ -138,7 +157,13 @@
 
   <div class="qty-container">
     <label style="margin:0; font-size: 16px;">จำนวน:</label>
-    <input type="number" id="qty-input" class="qty-input" value="1" min="1">
+    <div class="qty-control">
+      <button type="button" class="btn-qty" onclick="changeQty(-1)">-</button>
+      <input type="number" id="qty-input" class="qty-input" value="1" min="1" 
+             onfocus="handleQtyFocus(this)" 
+             onblur="handleQtyBlur(this)">
+      <button type="button" class="btn-qty" onclick="changeQty(1)">+</button>
+    </div>
   </div>
 
   <div class="action-buttons">
@@ -180,7 +205,6 @@
   let codeReader = null;
   let scanTimeoutTimer = null;
 
-  // 📌 เพิ่ม Cache ฝั่งเครื่องพนักงาน (Client Memory Cache)
   const scannedCache = {};
 
   function createCodeReader() {
@@ -416,7 +440,6 @@
     lookupBarcode(barcodeText);
   }
 
-  // 📌 ค้นหาบาร์โค้ดแบบ Fast & Dynamic (Client Cache + Server Cache + Fast Finder)
   function lookupBarcode(barcode) {
     const cleanBarcode = barcode ? barcode.trim() : '';
     if (!cleanBarcode) {
@@ -424,7 +447,6 @@
       return;
     }
 
-    // 1. เช็คความจำในเบราว์เซอร์ก่อน (ถ้าสแกนซ้ำจะขึ้นทันที 0 วินาที)
     if (scannedCache[cleanBarcode]) {
       const res = scannedCache[cleanBarcode];
       currentProductData = res;
@@ -441,7 +463,6 @@
       return;
     }
 
-    // 2. ถ้ายังไม่เคยสแกน ยิงไปดึงจาก Server
     setLoadingState(true, "⏳ กำลังดึงข้อมูล...");
 
     fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
@@ -450,7 +471,6 @@
         return res.json();
       })
       .then(res => {
-        // บันทึกลง Client Cache ไว้สแกนรอบถัดไป
         scannedCache[cleanBarcode] = res;
 
         if (res && res.found) {
@@ -496,6 +516,28 @@
     document.getElementById('btnAdd').disabled = true;
     document.getElementById('btnAdd').innerText = "+ เพิ่มรายการ";
     currentProductData = null;
+  }
+
+  /* 📌 ฟังก์ชันจัดการปุ่มกด +/- และเคลียร์ช่องว่าง */
+  function changeQty(delta) {
+    const qtyInput = document.getElementById('qty-input');
+    let currentVal = parseInt(qtyInput.value) || 1;
+    let newVal = currentVal + delta;
+    if (newVal < 1) newVal = 1;
+    qtyInput.value = newVal;
+  }
+
+  function handleQtyFocus(input) {
+    input.dataset.oldValue = input.value;
+    input.value = '';
+  }
+
+  function handleQtyBlur(input) {
+    if (input.value.trim() === '' || parseInt(input.value) <= 0) {
+      input.value = input.dataset.oldValue && parseInt(input.dataset.oldValue) > 0 
+                    ? input.dataset.oldValue 
+                    : '1';
+    }
   }
 
   function addToCart() {
