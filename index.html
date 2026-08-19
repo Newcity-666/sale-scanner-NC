@@ -160,12 +160,7 @@ window.onload = function() {
     // กำหนดประเภทบาร์โค้ดแท่งให้ระบบเน้นอ่านเฉพาะบาร์โค้ดสินค้า (ทำงานไวขึ้น 2-3 เท่า)
     const hints = new Map();
     const possibleFormats = [
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E
+      ZXing.BarcodeFormat.EAN_13
     ];
     hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, possibleFormats);
 
