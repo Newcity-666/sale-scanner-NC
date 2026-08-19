@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SALES SCAN SYSTEM</title>
   
-  <!-- เปลี่ยนจาก ZXing มาใช้ Quagga2 -->
+  <!-- ใช้ Quagga2 -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
   
   <style>
@@ -34,7 +34,6 @@
     
     .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
     
-    /* ปรับแต่งเพื่อให้วิดีโอ Quagga2 แสดงผลเต็มกรอบสวยงาม */
     .scanner-container video, .scanner-container canvas { width: 100%; height: 100%; object-fit: cover; }
     canvas.drawingBuffer { position: absolute; top: 0; left: 0; }
 
@@ -249,20 +248,29 @@
         type: "LiveStream",
         target: document.querySelector('#scanner-box'),
         constraints: {
-          facingMode: "environment", // บังคับใช้กล้องหลัง
-          width: { ideal: 640 },
-          height: { ideal: 480 }
+          facingMode: "environment",
+          width: { min: 640, ideal: 1280, max: 1920 }, // ปรับความละเอียดเป็น HD เพิ่มความคมชัด
+          height: { min: 480, ideal: 720, max: 1080 },
+          aspectRatio: { min: 1, max: 2 }
+        },
+        // 🎯 ล็อคพื้นที่ตรวจจับเฉพาะบริเวณกึ่งกลางกรอบสแกน
+        area: {
+          top: "20%",
+          right: "10%",
+          left: "10%",
+          bottom: "20%"
         }
       },
-      locator: { patchSize: "medium", halfSample: true },
+      locator: {
+        patchSize: "medium",
+        halfSample: false // คงความละเอียดภาพเต็ม ช่วยให้อ่านเส้นบาร์โค้ดได้แม่นยำขึ้น
+      },
       numOfWorkers: navigator.hardwareConcurrency || 4,
       decoder: {
         readers: [
-          "code_128_reader",
-          "ean_reader",
-          "ean_8_reader",
-          "code_39_reader"
-        ]
+          "ean_reader" // 🎯 อ่านเฉพาะ EAN-13 เท่านั้น
+        ],
+        multiple: false
       },
       locate: true
     }, function(err) {
@@ -302,10 +310,11 @@
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
       
-      // ป้องกันการสแกนรวดเดียวหลายรอบ
-      Quagga.offDetected(onScanDetected);
-
-      onScanSuccess(barcodeText);
+      // 🎯 ตรวจสอบความถูกต้อง: ต้องเป็นตัวเลขครบ 13 หลักเท่านั้น
+      if (barcodeText.length === 13 && /^\d+$/.test(barcodeText)) {
+        Quagga.offDetected(onScanDetected); // ป้องกันสแกนซ้ำรวดเดียว
+        onScanSuccess(barcodeText);
+      }
     }
   }
 
