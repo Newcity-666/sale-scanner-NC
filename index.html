@@ -32,23 +32,23 @@
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    /* Scanner Layout */
+    /* Scanner Layout - ซ่อน Overlay ภายในของ Library ทุกตัว เพื่อไม่ให้มีกรอบซ้อน */
     .scanner-wrapper { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
     #reader-html5 { width: 100%; height: 100%; }
     #reader-html5 video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+    #reader-html5 #qr-shaded-region, #reader-html5 div[style*="border"] { display: none !important; } /* ซ่อนกรอบซ้อน Html5Qrcode */
     #scanner-quagga video, #scanner-quagga canvas { width: 100%; height: 100%; object-fit: cover; }
-    canvas.drawingBuffer { position: absolute; top: 0; left: 0; }
+    canvas.drawingBuffer { display: none !important; } /* ซ่อนกรอบวาดของ Quagga2 */
 
+    /* กรอบสแกนเดี่ยวพร้อมเส้นสแกนสีแดงวิ่ง */
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-    
     .scanner-guide { 
       position: absolute; 
       left: 10%; right: 10%; top: 25%; height: 50%; 
       border: 2px solid rgba(255, 255, 255, 0.85);
       border-radius: 8px; 
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
     }
-    
     .scanner-guide::after { 
       content: ""; 
       position: absolute; 
@@ -58,7 +58,6 @@
       box-shadow: 0 0 8px 1px #ff0000; 
       animation: scan-red 1.4s infinite linear alternate; 
     }
-    
     .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
     
     @keyframes scan-red { 0% { top: 0%; } 100% { top: 100%; } }
@@ -115,8 +114,8 @@
       <span>โหมดสแกน:</span>
       <select id="scanEngineSelect" onchange="switchEngineManually(this.value)">
         <option value="auto">🤖 อัตโนมัติ (เลือกตามเครื่อง)</option>
-        <option value="old">⚡ Quagga2 (เน้นไว/ปรับภาพบาร์โค้ดจาง)</option>
-        <option value="new">🐢 Html5Qrcode (สแกนเจาะเฉพาะกรอบ)</option>
+        <option value="old">⚡ Quagga2 (สำหรับเครื่องทั่วไป)</option>
+        <option value="new">🐢 Html5Qrcode (สำหรับเครื่องรุ่นใหม่)</option>
       </select>
     </div>
     
@@ -124,9 +123,10 @@
       <div id="reader-html5" style="display:none; width:100%; height:100%;"></div>
       <div id="scanner-quagga" style="display:none; width:100%; height:100%;"></div>
 
+      <!-- กรอบหลักเพียงกรอบเดียวเท่านั้น -->
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
-        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
+        <div id="scanner-hint" class="scanner-hint">วาง Barcode (EAN13 / CODE128) ให้อยู่ในกรอบ</div>
       </div>
     </div>
 
@@ -271,7 +271,7 @@
   }
 
   // ==========================================
-  // 1. ENGINE Html5Qrcode
+  // 1. ENGINE Html5Qrcode (กำหนดเงื่อนไข: เฉพาะ 1D, EAN_13 และ CODE_128)
   // ==========================================
   function startHtml5Scanner() {
     if (!html5QrcodeScanner) {
@@ -280,9 +280,12 @@
 
     const config = { 
       fps: 15,
-      qrbox: { width: 260, height: 130 },
       videoConstraints: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
-      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.CODE_128 ]
+      // เงื่อนไขข้อ 1 และ 2: บังคับอ่านเฉพาะ Barcode 1D ประเภท EAN_13 และ CODE_128 เท่านั้น
+      formatsToSupport: [ 
+        Html5QrcodeSupportedFormats.EAN_13, 
+        Html5QrcodeSupportedFormats.CODE_128 
+      ]
     };
 
     html5QrcodeScanner.start(
@@ -308,7 +311,7 @@
   }
 
   // ==========================================
-  // 2. ENGINE Quagga2 (แก้ไขอาการกล้องกระพริบ + เสถียรสูง)
+  // 2. ENGINE Quagga2 (กำหนดเงื่อนไข: เฉพาะ 1D, EAN_13 และ CODE_128 + ป้องกันกล้องกระพริบ)
   // ==========================================
   function startQuaggaScanner() {
     scanHistoryOld = [];
@@ -320,24 +323,24 @@
         target: document.querySelector('#scanner-quagga'),
         constraints: {
           facingMode: "environment",
-          width: { ideal: 640 },  // ลดความละเอียดลงเล็กน้อยเพื่อให้กล้องไม่โหลดหนักและภาพลื่นไหล
+          width: { ideal: 640 },
           height: { ideal: 480 }
         },
-        area: { top: "15%", right: "5%", left: "5%", bottom: "15%" } // ขยายพื้นที่อ่านให้กว้างขึ้น
+        area: { top: "15%", right: "5%", left: "5%", bottom: "15%" }
       },
       locator: { 
         patchSize: "medium", 
-        halfSample: true // ช่วยประมวลผลเร็วขึ้นมากบนมือถือรุ่นเก่า
+        halfSample: true 
       },
       numOfWorkers: 2,
       decoder: { 
+        // เงื่อนไขข้อ 1 และ 2: อ่านเฉพาะ EAN-13 และ CODE-128 เท่านั้น
         readers: ["ean_reader", "code_128_reader"],
         multiple: false 
       },
-      locate: true
+      locate: false // ปิดการวาดกรอบค้นหาอัตโนมัติ เพื่อไม่ให้มีกรอบซ้อน (เงื่อนไขข้อ 3)
     }, function(err) {
       if (err) {
-        console.error("Quagga Init Error:", err);
         alert("ไม่สามารถเปิดกล้องได้ โปรดตรวจสอบการอนุญาตใช้งานกล้อง");
         stopScanner();
         return;
@@ -359,7 +362,7 @@
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
       
-      // ตรวจสอบความสมบูรณ์ของผลลัพธ์เพื่อลดการอ่านค่าผิดพลาดจากภาพไม่คม
+      // ป้องกันการอ่านผิดพลาดเฉพาะ EAN-13 ต้องมี 13 หลัก
       if (result.codeResult.format === "ean_13" && barcodeText.length !== 13) return;
 
       if (barcodeText.length >= 3) {
@@ -369,7 +372,6 @@
         const counts = {};
         scanHistoryOld.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-        // ยืนยันค่าเดียวกัน 2 ครั้งเพื่อป้องกันการอ่านผิดจากบาร์โค้ดจาง
         if (counts[barcodeText] >= 2) {
           Quagga.offDetected(onQuaggaDetected);
           onScanSuccess(barcodeText);
