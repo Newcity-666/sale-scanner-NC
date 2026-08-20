@@ -20,15 +20,15 @@
     
     input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px !important; outline: none; }
     
-    .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
+    .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; cursor: pointer; }
     .scanner-container video, .scanner-container canvas { width: 100%; height: 100%; object-fit: cover; }
     canvas.drawingBuffer { position: absolute; top: 0; left: 0; }
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-    .scanner-guide { position: absolute; left: 12%; right: 12%; top: 25%; height: 50%; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.28); }
-    .scanner-guide::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: red; box-shadow: 0 0 8px red; animation: scan 1.2s infinite alternate; }
-    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
-    @keyframes scan { 0% { transform: translateY(-55px); } 100% { transform: translateY(55px); } }
+    .scanner-guide { position: absolute; left: 10%; right: 10%; top: 20%; height: 60%; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.3); }
+    .scanner-guide::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #00ff00; box-shadow: 0 0 8px #00ff00; animation: scan 1.2s infinite alternate; }
+    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
+    @keyframes scan { 0% { transform: translateY(-60px); } 100% { transform: translateY(60px); } }
 
     .scan-btn-group { display: flex; gap: 8px; }
     .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
@@ -76,10 +76,11 @@
   <div class="form-group">
     <label>สแกนบาร์โค้ด:</label>
     
-    <div id="scanner-box" class="scanner-container">
+    <!-- เพิ่ม onclick triggerFocus เพื่อแตะหน้าจอสั่งปรับโฟกัส -->
+    <div id="scanner-box" class="scanner-container" onclick="triggerFocus()">
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
-        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
+        <div id="scanner-hint" class="scanner-hint">แตะที่จอภาพหากกล้องเบลอ / เว้นระยะ 15-20 ซม.</div>
       </div>
     </div>
 
@@ -149,8 +150,9 @@
   let scanHistory = [];
   const scannedCache = {};
 
-  // --- Auto-Recovery ---
+  // --- Auto-Recovery & Focus Loop ---
   let watchdogTimer = null;
+  let focusInterval = null;
   let lastProcessedTime = 0;
   let isRecovering = false;
 
@@ -192,6 +194,7 @@
 
     const cpuCores = navigator.hardwareConcurrency || 2;
     const isOldDevice = cpuCores <= 2;
+
     Quagga.init({
       inputStream: {
         name: "Live",
@@ -199,15 +202,16 @@
         target: document.querySelector('#scanner-box'),
         constraints: {
           facingMode: "environment",
+          // ปรับความละเอียดให้สัมพันธ์กับระบบโฟกัส
           width: { ideal: isOldDevice ? 640 : 1280 },
           height: { ideal: isOldDevice ? 480 : 720 },
           advanced: [{ focusMode: "continuous" }]
         },
-        area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
+        area: { top: "15%", right: "8%", left: "8%", bottom: "15%" }
       },
       locator: { 
-        patchSize: "medium", 
-        halfSample: isOldDevice
+        patchSize: "large", // เปลี่ยนเป็น large เพื่อจับบาร์โค้ดที่ค่อนข้างเบลอได้ดีขึ้น
+        halfSample: isOldDevice 
       },
       numOfWorkers: isOldDevice ? 1 : 2,
       decoder: { readers: ["ean_reader"], multiple: false },
@@ -218,27 +222,56 @@
         handleScannerError();
         return;
       }
-      
-      try {
-        const track = Quagga.CameraAccess.getActiveTrack();
-        if (track && typeof track.getCapabilities === 'function') {
-          const caps = track.getCapabilities();
-          if (caps.zoom) {
-            track.applyConstraints({ advanced: [{ zoom: Math.min(1.3, caps.zoom.max) }] });
-          }
-        }
-      } catch (e) {}
+
+      // ปิดคำสั่งบังคับ Zoom ออก (เนื่องจากทำให้ออโต้โฟกัสมือถือรุ่นเก่ารวน)
+      // และสั่งกระตุ้น Autofocus Hardware แบบบังคับฉุกเฉิน
+      triggerFocus();
 
       Quagga.start();
       startWatchdog();
+      startAutoTriggerFocus(); // สั่งกระตุ้นการโฟกัสวนลูปเป็นระยะ
     });
 
     Quagga.onDetected(onScanDetected);
     Quagga.onProcessed(onFrameProcessed);
   }
 
+  // ฟังก์ชันช่วยกระตุ้นฮาร์ดแวร์กล้องให้โฟกัสใหม่
+  function triggerFocus() {
+    try {
+      const track = Quagga.CameraAccess.getActiveTrack();
+      if (track && typeof track.applyConstraints === 'function') {
+        // เทคนิคส่งคำสั่งโฟกัสซ้ำ เพื่อกระตุ้นระบบโฟกัสกล้องมือถือรุ่นเก่า
+        track.applyConstraints({
+          advanced: [
+            { focusMode: "continuous" },
+            { pointsOfInterest: [{ x: 0.5, y: 0.5 }] } // เล็งโฟกัสไปตรงกลางจอ
+          ]
+        }).catch(e => {});
+      }
+    } catch (e) {}
+  }
+
+  // ระบบกระตุ้นการโฟกัสอัตโนมัติทุกๆ 3.5 วินาที
+  function startAutoTriggerFocus() {
+    stopAutoTriggerFocus();
+    focusInterval = setInterval(() => {
+      if (isScanning && !isRecovering) {
+        triggerFocus();
+      }
+    }, 3500);
+  }
+
+  function stopAutoTriggerFocus() {
+    if (focusInterval) {
+      clearInterval(focusInterval);
+      focusInterval = null;
+    }
+  }
+
   function stopScanner() {
     stopWatchdog();
+    stopAutoTriggerFocus();
     if (isScanning) {
       try {
         Quagga.offDetected(onScanDetected);
@@ -254,8 +287,6 @@
     btn.classList.remove("active");
   }
 
-  // --- Auto-Recovery ---
-
   function onFrameProcessed(result) {
     lastProcessedTime = Date.now();
   }
@@ -266,7 +297,6 @@
       if (isScanning && !isRecovering) {
         const timeDiff = Date.now() - lastProcessedTime;
         if (timeDiff > 3000) {
-          console.warn("กล้องค้างหรือสคริปต์หยุดทำงาน สั่งรีสตาร์ทกล้องอัตโนมัติ...");
           restartScannerAuto();
         }
       }
@@ -304,8 +334,6 @@
     }, 500);
   }
 
-  // -----------------------------------------------------
-
   function onScanDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
@@ -318,7 +346,8 @@
         const counts = {};
         scanHistory.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-        if (counts[barcodeText] >= 3) {
+        // ลดความเข้มงวดเป็น 2 ใน 4 ภาพ เพื่อให้มือถือรุ่นเก่าที่ภาพอาจไม่ชัดเป๊ะ อ่านติดได้ง่ายขึ้น
+        if (counts[barcodeText] >= 2) {
           Quagga.offDetected(onScanDetected);
           onScanSuccess(barcodeText);
         }
