@@ -147,7 +147,12 @@
   let cart = [];
   let isScanning = false;
   let scanHistory = [];
-  const scannedCache = {}; // Local Cache ในเครื่องมือถือ
+  const scannedCache = {};
+
+  // --- ตัวแปรสำหรับระบบ Auto-Recovery (กันกล้องค้าง) ---
+  let watchdogTimer = null;
+  let lastProcessedTime = 0;
+  let isRecovering = false;
 
   window.onload = function() { loadStoreList(); };
   
@@ -183,6 +188,7 @@
     isScanning = true;
 
     scanHistory = [];
+    lastProcessedTime = Date.now();
 
     Quagga.init({
       inputStream: {
@@ -203,8 +209,9 @@
       locate: true
     }, function(err) {
       if (err) {
-        alert("ไม่สามารถเข้าถึงกล้องได้");
-        stopScanner();
+        console.error("Quagga Init Error:", err);
+        // หากเปิดกล้องไม่สำเร็จ ให้พยายามเปิดใหม่อีกครั้ง
+        handleScannerError();
         return;
       }
       
@@ -219,15 +226,23 @@
       } catch (e) {}
 
       Quagga.start();
+      startWatchdog(); // เริ่มระบบตรวจจับกล้องค้าง
     });
 
     Quagga.onDetected(onScanDetected);
+    
+    // ตรวจจับทุกครั้งที่ Quagga ประมวลผลเฟรมภาพ
+    Quagga.onProcessed(onFrameProcessed);
   }
 
   function stopScanner() {
+    stopWatchdog();
     if (isScanning) {
-      Quagga.offDetected(onScanDetected);
-      Quagga.stop();
+      try {
+        Quagga.offDetected(onScanDetected);
+        Quagga.offProcessed(onFrameProcessed);
+        Quagga.stop();
+      } catch(e) {}
       isScanning = false;
     }
 
@@ -236,6 +251,62 @@
     btn.innerText = "📷 Scan Barcode";
     btn.classList.remove("active");
   }
+
+  // --- ฟังก์ชันระบบ Auto-Recovery (ตรวจจับและรีเซ็ต) ---
+
+  function onFrameProcessed(result) {
+    // อัปเดตเวลาล่าสุดที่เฟรมภาพยังคงทำงานอยู่
+    lastProcessedTime = Date.now();
+  }
+
+  function startWatchdog() {
+    stopWatchdog();
+    // ตรวจสอบความเคลื่อนไหวของกล้องทุกๆ 1.5 วินาที
+    watchdogTimer = setInterval(() => {
+      if (isScanning && !isRecovering) {
+        const timeDiff = Date.now() - lastProcessedTime;
+        // ถ้าไม่มีการประมวลผลเฟรมภาพเกิน 3 วินาที (กล้องค้างหรือ crash)
+        if (timeDiff > 3000) {
+          console.warn("กล้องค้างหรือสคริปต์หยุดทำงาน สั่งรีสตาร์ทกล้องอัตโนมัติ...");
+          restartScannerAuto();
+        }
+      }
+    }, 1500);
+  }
+
+  function stopWatchdog() {
+    if (watchdogTimer) {
+      clearInterval(watchdogTimer);
+      watchdogTimer = null;
+    }
+  }
+
+  function handleScannerError() {
+    if (isRecovering) return;
+    document.getElementById('scanner-hint').innerText = "🔄 กำลังรีเซ็ตระบบกล้อง...";
+    restartScannerAuto();
+  }
+
+  function restartScannerAuto() {
+    if (isRecovering) return;
+    isRecovering = true;
+    
+    // ทำการรีเซ็ตกล้องเงียบๆ ใน 0.5 วินาที
+    try {
+      Quagga.offDetected(onScanDetected);
+      Quagga.offProcessed(onFrameProcessed);
+      Quagga.stop();
+    } catch(e) {}
+
+    setTimeout(() => {
+      isRecovering = false;
+      if (isScanning) {
+        startScanner();
+      }
+    }, 500);
+  }
+
+  // -----------------------------------------------------
 
   function onScanDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
@@ -268,7 +339,6 @@
     const cleanBarcode = barcode ? barcode.trim() : '';
     if (!cleanBarcode) { resetDisplayInfo(); return; }
 
-    // Check Local Cache ก่อน (ถ้าเคยสแกนตัวนี้แล้ว จะแสดงผลทันทีใน 0 วินาที)
     if (scannedCache[cleanBarcode]) {
       const res = scannedCache[cleanBarcode];
       currentProductData = res;
@@ -287,11 +357,10 @@
 
     setLoadingState(true, "⏳ กำลังดึงข้อมูล...");
 
-    // ค้นหาผ่าน Fast Search API
     fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
       .then(res => res.json())
       .then(res => {
-        scannedCache[cleanBarcode] = res; // จำไว้ใน Local Cache
+        scannedCache[cleanBarcode] = res;
         if (res && res.found) {
           currentProductData = res;
           document.getElementById('display-sku').innerText = res.sku || '-';
