@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SALES SCAN SYSTEM</title>
   
-  <!-- ใช้ Html5-QRCode Engine -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    /* ป้องกันการไฮไลต์/คลุมดำ/แถบฟ้า/กดค้าง ทุกกรณี */
     * { 
       box-sizing: border-box; 
       -webkit-user-select: none;
@@ -23,7 +21,6 @@
     html, body { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eef2f5; padding: 8px; margin: 0; font-size: 15px; }
     
-    /* อนุญาตให้เลือกพิมพ์ในช่อง Input ได้ */
     input[type="text"], input[type="number"] { 
       -webkit-user-select: auto !important;
       -moz-user-select: auto !important;
@@ -38,25 +35,20 @@
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    /* กล่องสำหรับกล้อง */
     .scanner-container { position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
-    /* บังคับวิดีโอให้เต็มกรอบเสมอ */
     .scanner-container video { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
-    /* ซ่อน UI พิเศษใดๆ ที่ Library อาจสร้างเกินมา */
     #reader canvas { display: none !important; } 
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     
-    /* กรอบสแกน 4 เหลี่ยมแบบไม่มีมุม และเส้นสแกนสีแดง */
     .scanner-guide { 
       position: absolute; 
       left: 15%; right: 15%; top: 20%; height: 50%; 
-      border: 2px solid rgba(255, 255, 255, 0.6); /* กรอบขาวโปร่งแสง */
+      border: 2px solid rgba(255, 255, 255, 0.6);
       border-radius: 8px; 
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); /* เงาดำรอบนอกกรอบเพื่อให้สแกนง่าย */
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
     }
     
-    /* เส้นวิ่งสีแดง */
     .scanner-guide::after { 
       content: ""; 
       position: absolute; 
@@ -120,10 +112,8 @@
     <label>สแกนบาร์โค้ด:</label>
     
     <div id="scanner-box" class="scanner-container">
-      <!-- จุดรันกล้อง จะไม่มีการแสดงผล UI ของ Library แทรกอีกต่อไป -->
       <div id="reader" style="width: 100%; height: 100%;"></div>
       <div class="scanner-overlay">
-        <!-- กรอบที่เรา Custom ขึ้นมาเอง -->
         <div class="scanner-guide"></div>
         <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
       </div>
@@ -195,7 +185,6 @@
   let html5QrcodeScanner = null;
   const scannedCache = {};
   
-  // ป้องกันการยิงสแกนซ้ำรัวๆ (Debounce)
   let lastScannedCode = "";
   let lastScannedTime = 0;
 
@@ -223,7 +212,13 @@
     else startScanner();
   }
 
-  function startScanner() {
+  async function startScanner() {
+    // 1. เช็กความปลอดภัย HTTPS ก่อนเปิดกล้อง
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      alert("⚠️ ระบบกล้องต้องการการเชื่อมต่อแบบปลอดภัย (HTTPS) กรุณารันผ่าน HTTPS เท่านั้น");
+      return;
+    }
+
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
 
@@ -231,54 +226,55 @@
     btn.innerText = "🛑 ปิดกล้อง";
     btn.classList.add("active");
     isScanning = true;
-    lastScannedCode = ""; // Reset ค่าสแกนล่าสุด
+    lastScannedCode = "";
 
     if (!html5QrcodeScanner) {
       html5QrcodeScanner = new Html5Qrcode("reader");
     }
 
-    // --- การตั้งค่าระดับฮาร์ดแวร์เพื่อประสิทธิภาพสูงสุด ---
-    // 1. นำ qrbox ออก เพื่อไม่ให้ Library ตัดภาพ (กิน CPU) และวาดกรอบมุมเหลืองซ้อน
-    // 2. ปรับ FPS เป็น 10 ให้ CPU มือถือเก่าประมวลผลทัน ไม่หน่วง
     const config = { 
       fps: 10, 
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true // ดึงพลัง Hardware Acceleration มาใช้ (ถ้ามี)
-      },
-      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ] // รับแค่รหัส 13 หลัก ลดการเดามั่ว
-    };
-    
-    // 3. ควบคุมกล้องโดยตรง บังคับความละเอียด (Resolution) 
-    // ช่วยแก้ปัญหามือถือใหม่ที่ส่งภาพ 4K มาให้เบราว์เซอร์จนกระตุก
-    const cameraConstraints = {
-      facingMode: "environment",
-      width: { ideal: 640 }, 
-      height: { ideal: 480 },
-      advanced: [{ focusMode: "continuous" }]
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ]
     };
 
-    html5QrcodeScanner.start(
-      cameraConstraints,
-      config,
-      (decodedText) => {
-        let cleanText = decodedText.trim();
-        const now = Date.now();
-        
-        // กรองโค้ดที่ถูกต้อง และป้องกันการสแกนรัวๆ โค้ดเดิมซ้ำใน 2 วินาที
-        if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
-          if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
-            lastScannedCode = cleanText;
-            lastScannedTime = now;
-            onScanSuccess(cleanText);
-          }
+    const onScanSuccessCallback = (decodedText) => {
+      let cleanText = decodedText.trim();
+      const now = Date.now();
+      if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
+        if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
+          lastScannedCode = cleanText;
+          lastScannedTime = now;
+          onScanSuccess(cleanText);
         }
-      },
-      (errorMessage) => { /* Ignore non-scanned frames silently */ }
-    ).catch(err => {
-      console.error("Camera Start Error:", err);
-      alert("ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบสิทธิ์การเข้าถึง");
-      stopScanner();
-    });
+      }
+    };
+
+    // 2. ใช้ระบบ Fallback ป้องกันการค้างบนมือถือบางรุ่น
+    try {
+      // พยายามเปิดด้วยการตั้งค่าแบบระบุความละเอียดก่อน
+      await html5QrcodeScanner.start(
+        { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+        config,
+        onScanSuccessCallback,
+        () => {}
+      );
+    } catch (err1) {
+      console.warn("ไม่สามารถเปิดกล้องด้วย Resolution ถอยไปใช้กล้องแบบ Standard...", err1);
+      try {
+        // หากไม่ผ่าน ให้ถอยกลับไปเปิดกล้องหลังแบบพื้นฐานที่สุด
+        await html5QrcodeScanner.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccessCallback,
+          () => {}
+        );
+      } catch (err2) {
+        console.error("Camera Start Fallback Failed:", err2);
+        alert("ไม่สามารถเปิดกล้องได้ โปรดตรวจสอบว่าไม่มีแอปอื่นกำลังใช้กล้องอยู่ หรือเปิดใช้งานผ่าน Safari/Chrome โดยตรง");
+        stopScanner();
+      }
+    }
   }
 
   function stopScanner() {
@@ -302,10 +298,7 @@
   function onScanSuccess(barcodeText) {
     stopScanner();
     document.getElementById('barcode-input').value = barcodeText;
-    
-    // สั่นตอบสนองเพื่อบอกว่าสแกนติดแล้ว (ให้รู้ตัวเร็วๆ)
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
-    
     lookupBarcode(barcodeText);
   }
 
