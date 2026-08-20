@@ -38,7 +38,7 @@
     /* ซ่อน UI ดั้งเดิมของ html5-qrcode ทั้งหมด */
     #reader-html5 #qr-shaded-region, #reader-html5 div[style*="border"], #reader-html5 img { display: none !important; }
 
-    /* กรอบสแกนชั้นเดียวพร้อมเส้นสแกนสีแดง */
+    /* กรอบสแกนชั้นเดียวพร้อมเส้นสไลด์นิ่งตรงกลาง */
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     .scanner-guide { 
       position: absolute; 
@@ -47,18 +47,17 @@
       border-radius: 8px; 
       box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
     }
+    /* เส้นตรงกลางอยู่นิ่ง ไม่เคลื่อนไหว (Static Red Line) */
     .scanner-guide::after { 
       content: ""; 
       position: absolute; 
-      left: 0; right: 0; top: 0%; 
+      left: 0; right: 0; top: 50%; 
+      transform: translateY(-50%);
       height: 2px; 
       background: #ff0000; 
-      box-shadow: 0 0 8px 1px #ff0000; 
-      animation: scan-red 1.4s infinite linear alternate; 
+      box-shadow: 0 0 4px #ff0000; 
     }
     .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
-    
-    @keyframes scan-red { 0% { top: 0%; } 100% { top: 100%; } }
 
     .scan-btn-group { display: flex; gap: 8px; }
     .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
@@ -268,7 +267,6 @@
       html5QrcodeScanner = new Html5Qrcode("reader-html5");
     }
 
-    // ปรับ config เพิ่ม fps และปรับ qrbox ให้ตรงพื้นที่ เพื่อความเร็วสูงสุดทั้งรุ่นเก่าและใหม่
     const config = { 
       fps: 25,
       qrbox: { width: 280, height: 120 },
@@ -287,7 +285,7 @@
         processScanResult(decodedText.trim(), formatName);
       },
       () => {
-        lastFrameTime = Date.now(); // ยืนยันว่าระบบกำลังประมวลผลเฟรม
+        lastFrameTime = Date.now();
       }
     ).catch(err => {
       alert("ไม่สามารถเปิดกล้องได้ โปรดตรวจสอบการอนุญาตใช้งานกล้อง");
@@ -305,7 +303,6 @@
   // RECHECK LOGIC (ความถูกต้อง 3 ใน 5)
   // ==========================================
   function processScanResult(barcodeText, formatName) {
-    // กรองขั้นต้น
     if (formatName.includes("EAN_13") && barcodeText.length !== 13) return;
     if (barcodeText.length < 3) return;
 
@@ -315,7 +312,6 @@
     const counts = {};
     scanHistory.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-    // ยืนยัน 3 ใน 5
     if (counts[barcodeText] >= 3) {
       scanHistory = [];
       onScanSuccess(barcodeText);
