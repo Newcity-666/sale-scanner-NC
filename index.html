@@ -380,7 +380,8 @@
     document.getElementById('barcode-input').value = '';
     resetDisplayInfo();
     document.getElementById('qty-input').value = '1';
-    document.getElementById('barcode-input').focus();
+    
+    // 🎯 เอาคำสั่งสั่งโฟกัส (focus) ออกแล้ว เพื่อป้องกันไม่ให้คีย์บอร์ดเสมือนเด้งขึ้นมา
   }
 
   function renderCart() {
