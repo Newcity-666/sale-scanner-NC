@@ -2,33 +2,50 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SALES SCAN SYSTEM</title>
   
-  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+  <!-- ใช้ Html5-QRCode Engine สำหรับเครื่องที่ไม่มี BarcodeDetector API -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
-    * { box-sizing: border-box; }
-    html, body { -webkit-text-size-adjust: 100%; }
+    /* ป้องกันการไฮไลต์/คลุมดำ/แถบฟ้า/กดค้าง ทุกกรณี */
+    * { 
+      box-sizing: border-box; 
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    html, body { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eef2f5; padding: 8px; margin: 0; font-size: 15px; }
     
+    /* อนุญาตให้เลือกพิมพ์ในช่อง Input ได้ */
+    input[type="text"], input[type="number"] { 
+      -webkit-user-select: auto !important;
+      -moz-user-select: auto !important;
+      -ms-user-select: auto !important;
+      user-select: auto !important;
+      width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px !important; outline: none; 
+    }
+
     .card { background: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 440px; margin: 5px auto; padding: 14px; border: 1px solid #dcdfe6; }
     .header-title { background: #1a365d; color: white; padding: 12px; text-align: center; font-weight: bold; font-size: 18px; border-radius: 8px 8px 0 0; margin: -14px -14px 12px -14px; }
     
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px !important; outline: none; }
-    
-    .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; cursor: pointer; }
-    .scanner-container video, .scanner-container canvas { width: 100%; height: 100%; object-fit: cover; }
-    canvas.drawingBuffer { position: absolute; top: 0; left: 0; }
+    .scanner-container { position: relative; width: 100%; height: 230px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
+    .scanner-container video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     .scanner-guide { position: absolute; left: 10%; right: 10%; top: 20%; height: 60%; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.3); }
     .scanner-guide::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #00ff00; box-shadow: 0 0 8px #00ff00; animation: scan 1.2s infinite alternate; }
     .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
-    @keyframes scan { 0% { transform: translateY(-60px); } 100% { transform: translateY(60px); } }
+    @keyframes scan { 0% { transform: translateY(-50px); } 100% { transform: translateY(50px); } }
 
     .scan-btn-group { display: flex; gap: 8px; }
     .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
@@ -45,7 +62,7 @@
     .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .qty-control { display: flex; align-items: center; gap: 6px; }
     .qty-input { width: 80px !important; text-align: center; font-weight: bold; font-size: 20px !important; padding: 6px !important; height: 45px; }
-    .btn-qty { width: 45px; height: 45px; background: #cbd5e0; color: #2d3748; border: none; border-radius: 6px; font-size: 22px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; }
+    .btn-qty { width: 45px; height: 45px; background: #cbd5e0; color: #2d3748; border: none; border-radius: 6px; font-size: 22px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .btn-qty:active { background: #a0aec0; }
 
     .action-buttons { display: flex; gap: 8px; }
@@ -58,11 +75,10 @@
     .cart-table th { background: #edf2f7; text-align: center; padding: 6px; border: 1px solid #cbd5e0; font-size: 13px; }
     .cart-table td { padding: 6px 4px; border: 1px solid #e2e8f0; color: #1a202c; vertical-align: middle; }
     .btn-table-qty { width: 24px; height: 24px; background: #e2e8f0; border: 1px solid #cbd5e0; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-    .btn-table-qty:active { background: #cbd5e0; }
     .btn-del { background: #e53e3e; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
-<body>
+<body oncontextmenu="return false;" onselectstart="return false;">
 
 <div class="card">
   <div class="header-title">SALES SCAN SYSTEM</div>
@@ -76,16 +92,16 @@
   <div class="form-group">
     <label>สแกนบาร์โค้ด:</label>
     
-    <!-- เพิ่ม onclick triggerFocus เพื่อแตะหน้าจอสั่งปรับโฟกัส -->
-    <div id="scanner-box" class="scanner-container" onclick="triggerFocus()">
+    <div id="scanner-box" class="scanner-container">
+      <div id="reader" style="width: 100%; height: 100%;"></div>
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
-        <div id="scanner-hint" class="scanner-hint">แตะที่จอภาพหากกล้องเบลอ / เว้นระยะ 15-20 ซม.</div>
+        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
       </div>
     </div>
 
     <div class="scan-btn-group">
-      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
+      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 เปิดกล้องสแกน</button>
     </div>
     
     <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onchange="lookupBarcode(this.value)">
@@ -135,6 +151,7 @@
 </div>
 
 <script>
+  // ป้องกันการขยายหน้าจอเมื่อแตะย้ำๆ (Double Tap)
   let lastTouchEnd = 0;
   document.addEventListener('touchend', function (e) {
     const now = (new Date()).getTime();
@@ -147,14 +164,8 @@
   let currentProductData = null;
   let cart = [];
   let isScanning = false;
-  let scanHistory = [];
+  let html5QrcodeScanner = null;
   const scannedCache = {};
-
-  // --- Auto-Recovery & Focus Loop ---
-  let watchdogTimer = null;
-  let focusInterval = null;
-  let lastProcessedTime = 0;
-  let isRecovering = false;
 
   window.onload = function() { loadStoreList(); };
   
@@ -189,169 +200,51 @@
     btn.classList.add("active");
     isScanning = true;
 
-    scanHistory = [];
-    lastProcessedTime = Date.now();
-
-    const cpuCores = navigator.hardwareConcurrency || 2;
-    const isOldDevice = cpuCores <= 2;
-
-    Quagga.init({
-      inputStream: {
-        name: "Live",
-        type: "LiveStream",
-        target: document.querySelector('#scanner-box'),
-        constraints: {
-          facingMode: "environment",
-          // ปรับความละเอียดให้สัมพันธ์กับระบบโฟกัส
-          width: { ideal: isOldDevice ? 640 : 1280 },
-          height: { ideal: isOldDevice ? 480 : 720 },
-          advanced: [{ focusMode: "continuous" }]
-        },
-        area: { top: "15%", right: "8%", left: "8%", bottom: "15%" }
-      },
-      locator: { 
-        patchSize: "large", // เปลี่ยนเป็น large เพื่อจับบาร์โค้ดที่ค่อนข้างเบลอได้ดีขึ้น
-        halfSample: isOldDevice 
-      },
-      numOfWorkers: isOldDevice ? 1 : 2,
-      decoder: { readers: ["ean_reader"], multiple: false },
-      locate: true
-    }, function(err) {
-      if (err) {
-        console.error("Quagga Init Error:", err);
-        handleScannerError();
-        return;
-      }
-
-      // ปิดคำสั่งบังคับ Zoom ออก (เนื่องจากทำให้ออโต้โฟกัสมือถือรุ่นเก่ารวน)
-      // และสั่งกระตุ้น Autofocus Hardware แบบบังคับฉุกเฉิน
-      triggerFocus();
-
-      Quagga.start();
-      startWatchdog();
-      startAutoTriggerFocus(); // สั่งกระตุ้นการโฟกัสวนลูปเป็นระยะ
-    });
-
-    Quagga.onDetected(onScanDetected);
-    Quagga.onProcessed(onFrameProcessed);
-  }
-
-  // ฟังก์ชันช่วยกระตุ้นฮาร์ดแวร์กล้องให้โฟกัสใหม่
-  function triggerFocus() {
-    try {
-      const track = Quagga.CameraAccess.getActiveTrack();
-      if (track && typeof track.applyConstraints === 'function') {
-        // เทคนิคส่งคำสั่งโฟกัสซ้ำ เพื่อกระตุ้นระบบโฟกัสกล้องมือถือรุ่นเก่า
-        track.applyConstraints({
-          advanced: [
-            { focusMode: "continuous" },
-            { pointsOfInterest: [{ x: 0.5, y: 0.5 }] } // เล็งโฟกัสไปตรงกลางจอ
-          ]
-        }).catch(e => {});
-      }
-    } catch (e) {}
-  }
-
-  // ระบบกระตุ้นการโฟกัสอัตโนมัติทุกๆ 3.5 วินาที
-  function startAutoTriggerFocus() {
-    stopAutoTriggerFocus();
-    focusInterval = setInterval(() => {
-      if (isScanning && !isRecovering) {
-        triggerFocus();
-      }
-    }, 3500);
-  }
-
-  function stopAutoTriggerFocus() {
-    if (focusInterval) {
-      clearInterval(focusInterval);
-      focusInterval = null;
+    if (!html5QrcodeScanner) {
+      html5QrcodeScanner = new Html5Qrcode("reader");
     }
+
+    // Config เน้นดึงความเร็วระดับสูงสุด
+    const config = { 
+      fps: 20, 
+      qrbox: { width: 260, height: 130 },
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true // ใช้ Hardware Acceleration หากเครื่องรองรับ (สแกนไวมาก)
+      },
+      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ]
+    };
+
+    html5QrcodeScanner.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        let cleanText = decodedText.trim();
+        if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
+          onScanSuccess(cleanText);
+        }
+      },
+      (errorMessage) => { /* ข้าม Error เฟรมที่สแกนไม่เจอ */ }
+    ).catch(err => {
+      console.error("Camera Start Error:", err);
+      stopScanner();
+    });
   }
 
   function stopScanner() {
-    stopWatchdog();
-    stopAutoTriggerFocus();
-    if (isScanning) {
-      try {
-        Quagga.offDetected(onScanDetected);
-        Quagga.offProcessed(onFrameProcessed);
-        Quagga.stop();
-      } catch(e) {}
+    if (isScanning && html5QrcodeScanner) {
+      html5QrcodeScanner.stop().then(() => {
+        isScanning = false;
+        document.getElementById('scanner-box').style.display = "none";
+        const btn = document.getElementById('btnToggleScan');
+        btn.innerText = "📷 เปิดกล้องสแกน";
+        btn.classList.remove("active");
+      }).catch(err => console.error(err));
+    } else {
+      document.getElementById('scanner-box').style.display = "none";
+      const btn = document.getElementById('btnToggleScan');
+      btn.innerText = "📷 เปิดกล้องสแกน";
+      btn.classList.remove("active");
       isScanning = false;
-    }
-
-    document.getElementById('scanner-box').style.display = "none";
-    const btn = document.getElementById('btnToggleScan');
-    btn.innerText = "📷 Scan Barcode";
-    btn.classList.remove("active");
-  }
-
-  function onFrameProcessed(result) {
-    lastProcessedTime = Date.now();
-  }
-
-  function startWatchdog() {
-    stopWatchdog();
-    watchdogTimer = setInterval(() => {
-      if (isScanning && !isRecovering) {
-        const timeDiff = Date.now() - lastProcessedTime;
-        if (timeDiff > 3000) {
-          restartScannerAuto();
-        }
-      }
-    }, 1500);
-  }
-
-  function stopWatchdog() {
-    if (watchdogTimer) {
-      clearInterval(watchdogTimer);
-      watchdogTimer = null;
-    }
-  }
-
-  function handleScannerError() {
-    if (isRecovering) return;
-    document.getElementById('scanner-hint').innerText = "🔄 กำลังรีเซ็ตระบบกล้อง...";
-    restartScannerAuto();
-  }
-
-  function restartScannerAuto() {
-    if (isRecovering) return;
-    isRecovering = true;
-    
-    try {
-      Quagga.offDetected(onScanDetected);
-      Quagga.offProcessed(onFrameProcessed);
-      Quagga.stop();
-    } catch(e) {}
-
-    setTimeout(() => {
-      isRecovering = false;
-      if (isScanning) {
-        startScanner();
-      }
-    }, 500);
-  }
-
-  function onScanDetected(result) {
-    if (result && result.codeResult && result.codeResult.code) {
-      let barcodeText = result.codeResult.code.trim();
-
-      if (barcodeText.length === 13 && /^\d+$/.test(barcodeText)) {
-        scanHistory.push(barcodeText);
-
-        if (scanHistory.length > 5) scanHistory.shift();
-
-        const counts = {};
-        scanHistory.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
-
-        // ลดความเข้มงวดเป็น 2 ใน 4 ภาพ เพื่อให้มือถือรุ่นเก่าที่ภาพอาจไม่ชัดเป๊ะ อ่านติดได้ง่ายขึ้น
-        if (counts[barcodeText] >= 2) {
-          Quagga.offDetected(onScanDetected);
-          onScanSuccess(barcodeText);
-        }
-      }
     }
   }
 
