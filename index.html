@@ -425,12 +425,14 @@
   }
 
   // 📌 ปรับจำนวนสินค้าจากตารางรายการ
+// 📌 ปรับจำนวนสินค้าจากตารางรายการ (ขั้นต่ำคือ 1)
   function updateItemQty(index, delta) {
     if (cart[index]) {
-      cart[index].quantity += delta;
-      if (cart[index].quantity <= 0) {
-        removeFromCart(index);
-      } else {
+      let newQty = cart[index].quantity + delta;
+      
+      // ล็อคขั้นต่ำไว้ที่ 1 (ถ้ากด - ตอนที่เป็น 1 จะไม่เกิดอะไรขึ้น)
+      if (newQty >= 1) {
+        cart[index].quantity = newQty;
         renderCart();
       }
     }
