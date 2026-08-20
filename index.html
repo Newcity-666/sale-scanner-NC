@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SALES SCAN SYSTEM</title>
   
-  <!-- ใช้ Html5-QRCode Engine สำหรับเครื่องที่ไม่มี BarcodeDetector API -->
+  <!-- ใช้ Html5-QRCode Engine -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
   <style>
@@ -38,14 +38,41 @@
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    .scanner-container { position: relative; width: 100%; height: 230px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
-    .scanner-container video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+    /* กล่องสำหรับกล้อง */
+    .scanner-container { position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
+    /* บังคับวิดีโอให้เต็มกรอบเสมอ */
+    .scanner-container video { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
+    /* ซ่อน UI พิเศษใดๆ ที่ Library อาจสร้างเกินมา */
+    #reader canvas { display: none !important; } 
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-    .scanner-guide { position: absolute; left: 10%; right: 10%; top: 20%; height: 60%; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.3); }
-    .scanner-guide::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #00ff00; box-shadow: 0 0 8px #00ff00; animation: scan 1.2s infinite alternate; }
-    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
-    @keyframes scan { 0% { transform: translateY(-50px); } 100% { transform: translateY(50px); } }
+    
+    /* กรอบสแกน 4 เหลี่ยมแบบไม่มีมุม และเส้นสแกนสีแดง */
+    .scanner-guide { 
+      position: absolute; 
+      left: 15%; right: 15%; top: 20%; height: 50%; 
+      border: 2px solid rgba(255, 255, 255, 0.6); /* กรอบขาวโปร่งแสง */
+      border-radius: 8px; 
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); /* เงาดำรอบนอกกรอบเพื่อให้สแกนง่าย */
+    }
+    
+    /* เส้นวิ่งสีแดง */
+    .scanner-guide::after { 
+      content: ""; 
+      position: absolute; 
+      left: 0; right: 0; top: 0%; 
+      height: 2px; 
+      background: #ff0000; 
+      box-shadow: 0 0 8px 1px #ff0000; 
+      animation: scan-red 1.5s infinite linear alternate; 
+    }
+    
+    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
+    
+    @keyframes scan-red { 
+      0% { top: 0%; } 
+      100% { top: 100%; } 
+    }
 
     .scan-btn-group { display: flex; gap: 8px; }
     .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
@@ -93,8 +120,10 @@
     <label>สแกนบาร์โค้ด:</label>
     
     <div id="scanner-box" class="scanner-container">
+      <!-- จุดรันกล้อง จะไม่มีการแสดงผล UI ของ Library แทรกอีกต่อไป -->
       <div id="reader" style="width: 100%; height: 100%;"></div>
       <div class="scanner-overlay">
+        <!-- กรอบที่เรา Custom ขึ้นมาเอง -->
         <div class="scanner-guide"></div>
         <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
       </div>
@@ -151,7 +180,6 @@
 </div>
 
 <script>
-  // ป้องกันการขยายหน้าจอเมื่อแตะย้ำๆ (Double Tap)
   let lastTouchEnd = 0;
   document.addEventListener('touchend', function (e) {
     const now = (new Date()).getTime();
@@ -166,6 +194,10 @@
   let isScanning = false;
   let html5QrcodeScanner = null;
   const scannedCache = {};
+  
+  // ป้องกันการยิงสแกนซ้ำรัวๆ (Debounce)
+  let lastScannedCode = "";
+  let lastScannedTime = 0;
 
   window.onload = function() { loadStoreList(); };
   
@@ -199,33 +231,52 @@
     btn.innerText = "🛑 ปิดกล้อง";
     btn.classList.add("active");
     isScanning = true;
+    lastScannedCode = ""; // Reset ค่าสแกนล่าสุด
 
     if (!html5QrcodeScanner) {
       html5QrcodeScanner = new Html5Qrcode("reader");
     }
 
-    // Config เน้นดึงความเร็วระดับสูงสุด
+    // --- การตั้งค่าระดับฮาร์ดแวร์เพื่อประสิทธิภาพสูงสุด ---
+    // 1. นำ qrbox ออก เพื่อไม่ให้ Library ตัดภาพ (กิน CPU) และวาดกรอบมุมเหลืองซ้อน
+    // 2. ปรับ FPS เป็น 10 ให้ CPU มือถือเก่าประมวลผลทัน ไม่หน่วง
     const config = { 
-      fps: 20, 
-      qrbox: { width: 260, height: 130 },
+      fps: 10, 
       experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true // ใช้ Hardware Acceleration หากเครื่องรองรับ (สแกนไวมาก)
+        useBarCodeDetectorIfSupported: true // ดึงพลัง Hardware Acceleration มาใช้ (ถ้ามี)
       },
-      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ]
+      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ] // รับแค่รหัส 13 หลัก ลดการเดามั่ว
+    };
+    
+    // 3. ควบคุมกล้องโดยตรง บังคับความละเอียด (Resolution) 
+    // ช่วยแก้ปัญหามือถือใหม่ที่ส่งภาพ 4K มาให้เบราว์เซอร์จนกระตุก
+    const cameraConstraints = {
+      facingMode: "environment",
+      width: { ideal: 640 }, 
+      height: { ideal: 480 },
+      advanced: [{ focusMode: "continuous" }]
     };
 
     html5QrcodeScanner.start(
-      { facingMode: "environment" },
+      cameraConstraints,
       config,
       (decodedText) => {
         let cleanText = decodedText.trim();
+        const now = Date.now();
+        
+        // กรองโค้ดที่ถูกต้อง และป้องกันการสแกนรัวๆ โค้ดเดิมซ้ำใน 2 วินาที
         if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
-          onScanSuccess(cleanText);
+          if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
+            lastScannedCode = cleanText;
+            lastScannedTime = now;
+            onScanSuccess(cleanText);
+          }
         }
       },
-      (errorMessage) => { /* ข้าม Error เฟรมที่สแกนไม่เจอ */ }
+      (errorMessage) => { /* Ignore non-scanned frames silently */ }
     ).catch(err => {
       console.error("Camera Start Error:", err);
+      alert("ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบสิทธิ์การเข้าถึง");
       stopScanner();
     });
   }
@@ -251,7 +302,10 @@
   function onScanSuccess(barcodeText) {
     stopScanner();
     document.getElementById('barcode-input').value = barcodeText;
-    if (navigator.vibrate) navigator.vibrate(200);
+    
+    // สั่นตอบสนองเพื่อบอกว่าสแกนติดแล้ว (ให้รู้ตัวเร็วๆ)
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+    
     lookupBarcode(barcodeText);
   }
 
