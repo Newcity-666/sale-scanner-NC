@@ -11,8 +11,6 @@
     * { 
       box-sizing: border-box; 
       -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
       user-select: none;
       -webkit-touch-callout: none;
       -webkit-tap-highlight-color: transparent;
@@ -23,8 +21,6 @@
     
     input[type="text"], input[type="number"] { 
       -webkit-user-select: auto !important;
-      -moz-user-select: auto !important;
-      -ms-user-select: auto !important;
       user-select: auto !important;
       width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px !important; outline: none; 
     }
@@ -37,7 +33,6 @@
     
     .scanner-container { position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
     .scanner-container video { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
-    #reader canvas { display: none !important; } 
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     
@@ -112,7 +107,7 @@
     <label>สแกนบาร์โค้ด:</label>
     
     <div id="scanner-box" class="scanner-container">
-      <div id="reader" style="width: 100%; height: 100%;"></div>
+      <video id="webcam-video" playsinline autoplay muted></video>
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
         <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
@@ -183,6 +178,7 @@
   let cart = [];
   let isScanning = false;
   let html5QrcodeScanner = null;
+  let videoStream = null;
   const scannedCache = {};
   
   let lastScannedCode = "";
@@ -213,86 +209,69 @@
   }
 
   async function startScanner() {
-    // 1. เช็กความปลอดภัย HTTPS ก่อนเปิดกล้อง
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-      alert("⚠️ ระบบกล้องต้องการการเชื่อมต่อแบบปลอดภัย (HTTPS) กรุณารันผ่าน HTTPS เท่านั้น");
-      return;
-    }
-
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
+    const video = document.getElementById('webcam-video');
 
     scannerBox.style.display = "block";
     btn.innerText = "🛑 ปิดกล้อง";
     btn.classList.add("active");
     isScanning = true;
-    lastScannedCode = "";
 
-    if (!html5QrcodeScanner) {
-      html5QrcodeScanner = new Html5Qrcode("reader");
-    }
-
-    const config = { 
-      fps: 10, 
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ]
-    };
-
-    const onScanSuccessCallback = (decodedText) => {
-      let cleanText = decodedText.trim();
-      const now = Date.now();
-      if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
-        if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
-          lastScannedCode = cleanText;
-          lastScannedTime = now;
-          onScanSuccess(cleanText);
-        }
-      }
-    };
-
-    // 2. ใช้ระบบ Fallback ป้องกันการค้างบนมือถือบางรุ่น
+    // Direct MediaDevices Call (เปิดกล้องตรงไม่ผ่าน Library)
     try {
-      // พยายามเปิดด้วยการตั้งค่าแบบระบุความละเอียดก่อน
-      await html5QrcodeScanner.start(
-        { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
-        config,
-        onScanSuccessCallback,
-        () => {}
-      );
-    } catch (err1) {
-      console.warn("ไม่สามารถเปิดกล้องด้วย Resolution ถอยไปใช้กล้องแบบ Standard...", err1);
-      try {
-        // หากไม่ผ่าน ให้ถอยกลับไปเปิดกล้องหลังแบบพื้นฐานที่สุด
-        await html5QrcodeScanner.start(
-          { facingMode: "environment" },
-          config,
-          onScanSuccessCallback,
-          () => {}
-        );
-      } catch (err2) {
-        console.error("Camera Start Fallback Failed:", err2);
-        alert("ไม่สามารถเปิดกล้องได้ โปรดตรวจสอบว่าไม่มีแอปอื่นกำลังใช้กล้องอยู่ หรือเปิดใช้งานผ่าน Safari/Chrome โดยตรง");
-        stopScanner();
+      const constraints = {
+        video: { facingMode: { exact: "environment" } }
+      };
+      videoStream = await navigator.mediaDevices.getUserMedia(constraints).catch(async () => {
+        // Fallback หากเครื่องไม่รองรับ exact environment
+        return await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      });
+
+      video.srcObject = videoStream;
+      await video.play();
+
+      // สั่งให้ Library ดึงเฟรมจาก HTML Video Element มาสแกน
+      if (!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5Qrcode("scanner-box");
       }
+
+      html5QrcodeScanner.start(
+        videoStream.getVideoTracks()[0].getSettings().deviceId || { facingMode: "environment" },
+        { fps: 10, formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ] },
+        (decodedText) => {
+          let cleanText = decodedText.trim();
+          const now = Date.now();
+          if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
+            if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
+              lastScannedCode = cleanText;
+              lastScannedTime = now;
+              onScanSuccess(cleanText);
+            }
+          }
+        },
+        () => {}
+      ).catch(() => {});
+
+    } catch (err) {
+      alert("❌ ไม่สามารถเปิดกล้องได้:\n1. ตรวจสอบว่าเปิดเว็บด้วย HTTPS\n2. เปิดด้วย Safari หรือ Chrome โดยตรง (ไม่เปิดผ่าน LINE/FB)\n\nรายละเอียด Error: " + err.message);
+      stopScanner();
     }
   }
 
   function stopScanner() {
-    if (isScanning && html5QrcodeScanner) {
-      html5QrcodeScanner.stop().then(() => {
-        isScanning = false;
-        document.getElementById('scanner-box').style.display = "none";
-        const btn = document.getElementById('btnToggleScan');
-        btn.innerText = "📷 เปิดกล้องสแกน";
-        btn.classList.remove("active");
-      }).catch(err => console.error(err));
-    } else {
-      document.getElementById('scanner-box').style.display = "none";
-      const btn = document.getElementById('btnToggleScan');
-      btn.innerText = "📷 เปิดกล้องสแกน";
-      btn.classList.remove("active");
-      isScanning = false;
+    if (html5QrcodeScanner) {
+      html5QrcodeScanner.stop().catch(() => {});
     }
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      videoStream = null;
+    }
+    document.getElementById('scanner-box').style.display = "none";
+    const btn = document.getElementById('btnToggleScan');
+    btn.innerText = "📷 เปิดกล้องสแกน";
+    btn.classList.remove("active");
+    isScanning = false;
   }
 
   function onScanSuccess(barcodeText) {
