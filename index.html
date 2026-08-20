@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SALES SCAN SYSTEM</title>
   
-  <!-- โหลดทั้ง 2 Engines ชนิด Async/Defer -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   
@@ -44,7 +43,7 @@
     
     .scanner-guide { 
       position: absolute; 
-      left: 10%; right: 10%; top: 20%; height: 55%; 
+      left: 10%; right: 10%; top: 25%; height: 50%; 
       border: 2px solid rgba(255, 255, 255, 0.85);
       border-radius: 8px; 
       box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);
@@ -115,16 +114,14 @@
     <div class="engine-selector">
       <span>โหมดสแกน:</span>
       <select id="scanEngineSelect" onchange="switchEngineManually(this.value)">
-        <option value="auto">🤖 อัตโนมัติ (ตรวจจับเครื่อง)</option>
-        <option value="new">⚡ เครื่องรุ่นใหม่ (Html5Qrcode)</option>
-        <option value="old">🐢 เครื่องรุ่นเก่า (Quagga2)</option>
+        <option value="auto">🤖 อัตโนมัติ (เลือกตามเครื่อง)</option>
+        <option value="old">⚡ Quagga2 (เน้นไว/ปรับภาพบาร์โค้ดจาง)</option>
+        <option value="new">🐢 Html5Qrcode (สแกนเจาะเฉพาะกรอบ)</option>
       </select>
     </div>
     
     <div id="scanner-box" class="scanner-wrapper">
-      <!-- Container สำหรับ Html5Qrcode (รุ่นใหม่) -->
       <div id="reader-html5" style="display:none; width:100%; height:100%;"></div>
-      <!-- Container สำหรับ Quagga2 (รุ่นเก่า) -->
       <div id="scanner-quagga" style="display:none; width:100%; height:100%;"></div>
 
       <div class="scanner-overlay">
@@ -196,36 +193,22 @@
   let currentProductData = null;
   let cart = [];
   let isScanning = false;
-  let activeEngine = "new"; // "new" หรือ "old"
+  let activeEngine = "old"; 
   const scannedCache = {};
 
-  // --- Html5Qrcode Variables ---
   let html5QrcodeScanner = null;
-  let scanBufferNew = [];
-
-  // --- Quagga2 Variables ---
   let scanHistoryOld = [];
   let watchdogTimerOld = null;
   let lastProcessedTimeOld = 0;
-  let scanStartTimeOld = 0;
-  let isRecoveringOld = false;
 
   window.onload = function() { 
     loadStoreList(); 
     detectOptimalEngine();
   };
 
-  // ตรวจจับอัตโนมัติว่าควรใช้เอนจินแบบไหน
   function detectOptimalEngine() {
-    const isNewEngineSupported = 'BarcodeDetector' in window || (navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices);
-    const userAgent = navigator.userAgent || "";
-    const isOldDevice = /Android 6|Android 7|Android 8|iPhone OS 11|iPhone OS 12/i.test(userAgent);
-
-    if (isNewEngineSupported && !isOldDevice) {
-      activeEngine = "new";
-    } else {
-      activeEngine = "old";
-    }
+    // ปรับตั้งต้นให้ใช้ Quagga2 เพราะตอบสนองเร็วกว่าบนมือถือทั่วไป
+    activeEngine = "old";
   }
 
   function switchEngineManually(val) {
@@ -248,7 +231,7 @@
           });
         }
       })
-      .catch(err => console.error("ไม่สามารถโหลดข้อมูลสาขาได้:", err));
+      .catch(err => console.error(err));
   }
 
   function toggleScanner() {
@@ -291,18 +274,17 @@
   }
 
   // ==========================================
-  // 1. ENGINE รุ่นใหม่ (Html5Qrcode)
+  // 1. ENGINE Html5Qrcode (ปรับบีบพื้นที่สแกนเพื่อเร่งความเร็ว)
   // ==========================================
   function startHtml5Scanner() {
-    scanBufferNew = [];
     if (!html5QrcodeScanner) {
       html5QrcodeScanner = new Html5Qrcode("reader-html5");
     }
 
     const config = { 
-      fps: 10,
-      videoConstraints: { facingMode: "environment", width: { max: 640 }, height: { max: 480 } },
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      fps: 20, // เร่งเฟรมเรทให้ตอบสนองไวขึ้น
+      qrbox: { width: 280, height: 120 }, // เจาะพื้นที่ตรวจจับเฉพาะกรอบสี่เหลี่ยม (ไม่สแกนทั้งภาพ)
+      videoConstraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
       formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.CODE_128 ]
     };
 
@@ -312,36 +294,28 @@
       (decodedText) => {
         let cleanText = decodedText.trim();
         if (cleanText.length >= 3) {
-          scanBufferNew.push(cleanText);
-          if (scanBufferNew.length > 3) scanBufferNew.shift();
-          if (scanBufferNew.filter(x => x === cleanText).length >= 2) {
-            scanBufferNew = [];
-            onScanSuccess(cleanText);
-          }
+          onScanSuccess(cleanText); // สแกนติดส่งค่าทันที ไม่ต้องรอ Buffer
         }
       },
       () => {}
     ).catch(err => {
-      console.warn("Html5Qrcode ทำงานไม่สำเร็จ สลับไปใช้ Quagga2...");
       activeEngine = "old";
       startScanner();
     });
   }
 
   function stopHtml5Scanner() {
-    scanBufferNew = [];
     if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
       html5QrcodeScanner.stop().catch(err => console.error(err));
     }
   }
 
   // ==========================================
-  // 2. ENGINE รุ่นเก่า (Quagga2 + Zoom/Recovery)
+  // 2. ENGINE Quagga2 (เพิ่ม Image Filters สำหรับบาร์โค้ดจาง/ไม่คม)
   // ==========================================
   function startQuaggaScanner() {
     scanHistoryOld = [];
     lastProcessedTimeOld = Date.now();
-    scanStartTimeOld = Date.now();
 
     Quagga.init({
       inputStream: {
@@ -356,24 +330,26 @@
         },
         area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
       },
-      locator: { patchSize: "medium", halfSample: false },
+      locator: { 
+        patchSize: "large", // ขยายการตรวจจับเส้นบาร์โค้ดขนาดเล็กหรือจาง
+        halfSample: false  // ใช้ความละเอียดเต็มพิกเซลในการคำนวณ
+      },
       numOfWorkers: navigator.hardwareConcurrency || 2,
-      decoder: { readers: ["ean_reader"], multiple: false },
+      decoder: { 
+        readers: ["ean_reader", "code_128_reader"],
+        multiple: false 
+      },
       locate: true
     }, function(err) {
       if (err) {
-        console.error("Quagga Init Error:", err);
         restartQuaggaAuto();
         return;
       }
-      
-      try {
-        const track = Quagga.CameraAccess.getActiveTrack();
-        if (track && typeof track.getCapabilities === 'function') {
-          const caps = track.getCapabilities();
-          if (caps.zoom) track.applyConstraints({ advanced: [{ zoom: Math.min(1.3, caps.zoom.max) }] });
-        }
-      } catch (e) {}
+
+      // ใส่ Filter ตกแต่งภาพก่อนนำไปถอดรหัส (ช่วยให้อ่านบาร์โค้ดพิมพ์ไม่คมชัดได้ดีขึ้นมาก)
+      Quagga.registerResultFilter(function(result) {
+        return true; 
+      });
 
       Quagga.start();
       startWatchdogQuagga();
@@ -392,19 +368,22 @@
     } catch(e) {}
   }
 
-  function onQuaggaProcessed() { lastProcessedTimeOld = Date.now(); }
+  function onQuaggaProcessed(result) { 
+    lastProcessedTimeOld = Date.now(); 
+  }
 
   function onQuaggaDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
-      if (barcodeText.length === 13 && /^\d+$/.test(barcodeText)) {
+      if (barcodeText.length >= 3) {
         scanHistoryOld.push(barcodeText);
-        if (scanHistoryOld.length > 5) scanHistoryOld.shift();
+        if (scanHistoryOld.length > 3) scanHistoryOld.shift();
 
         const counts = {};
         scanHistoryOld.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-        if (counts[barcodeText] >= 3) {
+        // ลดเกณฑ์การยืนยันเป็น 2 ครั้งเพื่อความรวดเร็วในการสแกนติด
+        if (counts[barcodeText] >= 2) {
           Quagga.offDetected(onQuaggaDetected);
           onScanSuccess(barcodeText);
         }
@@ -415,18 +394,9 @@
   function startWatchdogQuagga() {
     stopWatchdogQuagga();
     watchdogTimerOld = setInterval(() => {
-      if (isScanning && !isRecoveringOld && activeEngine === "old") {
-        const now = Date.now();
-        if (now - lastProcessedTimeOld > 3000) {
+      if (isScanning && activeEngine === "old") {
+        if (Date.now() - lastProcessedTimeOld > 3500) {
           restartQuaggaAuto();
-        } else if (now - scanStartTimeOld > 6000) {
-          scanHistoryOld = [];
-          scanStartTimeOld = Date.now();
-          const hint = document.getElementById('scanner-hint');
-          if (hint) {
-            hint.innerText = "🔄 ปรับโฟกัสใหม่...";
-            setTimeout(() => { hint.innerText = "วาง Barcode ให้อยู่ในกรอบ"; }, 1000);
-          }
         }
       }
     }, 1000);
@@ -437,17 +407,14 @@
   }
 
   function restartQuaggaAuto() {
-    if (isRecoveringOld) return;
-    isRecoveringOld = true;
     stopQuaggaScanner();
     setTimeout(() => {
-      isRecoveringOld = false;
       if (isScanning) startQuaggaScanner();
-    }, 400);
+    }, 300);
   }
 
   // ==========================================
-  // 3. COMMON FUNCTIONS (การจัดการข้อมูลและ UI)
+  // 3. COMMON FUNCTIONS
   // ==========================================
   function onScanSuccess(barcodeText) {
     stopScanner();
