@@ -146,8 +146,8 @@
   let currentProductData = null;
   let cart = [];
   let isScanning = false;
-  let scanHistory = []; // เก็บประวัติสแกนเพื่อรีเช็ค 3 ใน 5
-  const scannedCache = {};
+  let scanHistory = [];
+  const scannedCache = {}; // Local Cache ในเครื่องมือถือ
 
   window.onload = function() { loadStoreList(); };
   
@@ -182,7 +182,7 @@
     btn.classList.add("active");
     isScanning = true;
 
-    scanHistory = []; // ล้างประวัติสแกน
+    scanHistory = [];
 
     Quagga.init({
       inputStream: {
@@ -193,7 +193,6 @@
           facingMode: "environment",
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          // กระตุ้น Auto Focus ต่อเนื่องสำหรับรุ่นเก่า
           advanced: [{ focusMode: "continuous" }]
         },
         area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
@@ -209,7 +208,6 @@
         return;
       }
       
-      // สั่งซูมเล็กน้อย 1.3x เพื่อช่วยระยะโฟกัสบนมือถือรุ่นเก่า
       try {
         const track = Quagga.CameraAccess.getActiveTrack();
         if (track && typeof track.getCapabilities === 'function') {
@@ -239,7 +237,6 @@
     btn.classList.remove("active");
   }
 
-  // ฟังก์ชันรีเช็ค 3 ใน 5 ครั้ง (ช่วยลดความผิดพลาด)
   function onScanDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
@@ -252,7 +249,6 @@
         const counts = {};
         scanHistory.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-        // ถ้าระบบอ่านได้เลขเดียวกัน 3 ครั้งขึ้นไปใน 5 ครั้งล่าสุด
         if (counts[barcodeText] >= 3) {
           Quagga.offDetected(onScanDetected);
           onScanSuccess(barcodeText);
@@ -272,6 +268,7 @@
     const cleanBarcode = barcode ? barcode.trim() : '';
     if (!cleanBarcode) { resetDisplayInfo(); return; }
 
+    // Check Local Cache ก่อน (ถ้าเคยสแกนตัวนี้แล้ว จะแสดงผลทันทีใน 0 วินาที)
     if (scannedCache[cleanBarcode]) {
       const res = scannedCache[cleanBarcode];
       currentProductData = res;
@@ -290,10 +287,11 @@
 
     setLoadingState(true, "⏳ กำลังดึงข้อมูล...");
 
+    // ค้นหาผ่าน Fast Search API
     fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
       .then(res => res.json())
       .then(res => {
-        scannedCache[cleanBarcode] = res;
+        scannedCache[cleanBarcode] = res; // จำไว้ใน Local Cache
         if (res && res.found) {
           currentProductData = res;
           document.getElementById('display-sku').innerText = res.sku || '-';
@@ -380,8 +378,6 @@
     document.getElementById('barcode-input').value = '';
     resetDisplayInfo();
     document.getElementById('qty-input').value = '1';
-    
-    // 🎯 เอาคำสั่งสั่งโฟกัส (focus) ออกแล้ว เพื่อป้องกันไม่ให้คีย์บอร์ดเสมือนเด้งขึ้นมา
   }
 
   function renderCart() {
