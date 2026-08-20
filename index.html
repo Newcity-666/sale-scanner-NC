@@ -5,16 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SALES SCAN SYSTEM</title>
   
-  <!-- ใช้ Quagga2 -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
   
   <style>
     * { box-sizing: border-box; }
-    
-    html, body {
-      -webkit-text-size-adjust: 100%;
-    }
-
+    html, body { -webkit-text-size-adjust: 100%; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eef2f5; padding: 8px; margin: 0; font-size: 15px; }
     
     .card { background: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 440px; margin: 5px auto; padding: 14px; border: 1px solid #dcdfe6; }
@@ -23,59 +18,24 @@
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    input[type="text"], input[type="number"] { 
-      width: 100%; 
-      padding: 10px; 
-      border: 1px solid #cbd5e0; 
-      border-radius: 6px; 
-      font-size: 16px !important; 
-      outline: none; 
-    }
+    input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px !important; outline: none; }
     
     .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
-    
     .scanner-container video, .scanner-container canvas { width: 100%; height: 100%; object-fit: cover; }
     canvas.drawingBuffer { position: absolute; top: 0; left: 0; }
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-    .scanner-guide {
-      position: absolute;
-      left: 12%;
-      right: 12%;
-      top: 25%;
-      height: 50%;
-      border: 2px solid rgba(255,255,255,0.9);
-      border-radius: 8px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.28);
-    }
-    .scanner-guide::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 50%;
-      height: 2px;
-      background: red;
-      box-shadow: 0 0 8px red;
-      animation: scan 1.2s infinite alternate;
-    }
-    .scanner-hint {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 8px;
-      text-align: center;
-      color: white;
-      font-size: 13px;
-      font-weight: 600;
-      text-shadow: 0 1px 3px #000;
-      transition: color 0.2s;
-    }
+    .scanner-guide { position: absolute; left: 12%; right: 12%; top: 25%; height: 50%; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.28); }
+    .scanner-guide::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: red; box-shadow: 0 0 8px red; animation: scan 1.2s infinite alternate; }
+    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; }
     @keyframes scan { 0% { transform: translateY(-55px); } 100% { transform: translateY(55px); } }
 
-    .btn-scan { background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; width: 100%; box-shadow: 0 2px 5px rgba(43, 108, 176, 0.2); }
+    .scan-btn-group { display: flex; gap: 8px; }
+    .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
     .btn-scan.active { background: #e53e3e; }
-    
+    .btn-torch { width: 50px; background: #718096; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; display: none; align-items: center; justify-content: center; }
+    .btn-torch.active { background: #d69e2e; }
+
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
     .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
     .info-row:last-child { margin-bottom: 0; }
@@ -84,26 +44,10 @@
     .status-notFound { color: #e53e3e; font-size: 15px; }
     .status-loading { color: #d69e2e; }
     
-    /* 📌 ส่วนควบคุมจำนวน + / - บนมือถือ */
     .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .qty-control { display: flex; align-items: center; gap: 6px; }
     .qty-input { width: 80px !important; text-align: center; font-weight: bold; font-size: 20px !important; padding: 6px !important; height: 45px; }
-    .btn-qty {
-      width: 45px;
-      height: 45px;
-      background: #cbd5e0;
-      color: #2d3748;
-      border: none;
-      border-radius: 6px;
-      font-size: 22px;
-      font-weight: bold;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
+    .btn-qty { width: 45px; height: 45px; background: #cbd5e0; color: #2d3748; border: none; border-radius: 6px; font-size: 22px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; }
     .btn-qty:active { background: #a0aec0; }
 
     .action-buttons { display: flex; gap: 8px; }
@@ -112,10 +56,13 @@
     .btn-finish { flex: 1; background: #38a169; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .btn-finish:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
     
-    .cart-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-    .cart-table th { background: #edf2f7; text-align: left; padding: 8px; border: 1px solid #cbd5e0; font-size: 14px; }
-    .cart-table td { padding: 8px; border: 1px solid #e2e8f0; color: #1a202c; }
-    .btn-del { background: #e53e3e; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    /* 📌 ปรับแต่งตารางสำหรับปุ่ม +/- ในแถว */
+    .cart-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    .cart-table th { background: #edf2f7; text-align: center; padding: 6px; border: 1px solid #cbd5e0; font-size: 13px; }
+    .cart-table td { padding: 6px 4px; border: 1px solid #e2e8f0; color: #1a202c; vertical-align: middle; }
+    .btn-table-qty { width: 24px; height: 24px; background: #e2e8f0; border: 1px solid #cbd5e0; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .btn-table-qty:active { background: #cbd5e0; }
+    .btn-del { background: #e53e3e; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -139,9 +86,10 @@
       </div>
     </div>
 
-    <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">
-      📷 Scan Barcode
-    </button>
+    <div class="scan-btn-group">
+      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
+      <button id="btnTorch" class="btn-torch" onclick="toggleTorch()" title="เปิด/ปิด ไฟฉาย">🔦</button>
+    </div>
     
     <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onchange="lookupBarcode(this.value)">
   </div>
@@ -161,9 +109,7 @@
     <label style="margin:0; font-size: 16px;">จำนวน:</label>
     <div class="qty-control">
       <button type="button" class="btn-qty" onclick="changeQty(-1)">-</button>
-      <input type="number" id="qty-input" class="qty-input" value="1" min="1" 
-             onfocus="handleQtyFocus(this)" 
-             onblur="handleQtyBlur(this)">
+      <input type="number" id="qty-input" class="qty-input" value="1" min="1" onfocus="handleQtyFocus(this)" onblur="handleQtyBlur(this)">
       <button type="button" class="btn-qty" onclick="changeQty(1)">+</button>
     </div>
   </div>
@@ -176,13 +122,16 @@
   <div style="margin-top: 14px; font-weight: bold; font-size: 15px;">
     รายการในบิล (<span id="cart-count">0</span>/10)
   </div>
+  
+  <!-- 📌 ตารางแสดงรายการพร้อมลำดับ และ ปุ่ม +/- -->
   <table class="cart-table">
     <thead>
       <tr>
+        <th style="width: 28px;">#</th>
         <th>Barcode</th>
         <th>สินค้า</th>
-        <th style="width: 55px; text-align:center;">จำนวน</th>
-        <th style="width: 35px;"></th>
+        <th style="width: 80px;">จำนวน</th>
+        <th style="width: 30px;"></th>
       </tr>
     </thead>
     <tbody id="cart-list"></tbody>
@@ -193,9 +142,7 @@
   let lastTouchEnd = 0;
   document.addEventListener('touchend', function (e) {
     const now = (new Date()).getTime();
-    if (now - lastTouchEnd <= 300) {
-      e.preventDefault();
-    }
+    if (now - lastTouchEnd <= 300) e.preventDefault();
     lastTouchEnd = now;
   }, false);
 
@@ -204,12 +151,13 @@
   let currentProductData = null;
   let cart = [];
   let isScanning = false;
+  let isTorchOn = false;
 
+  let lastDetectedCode = "";
+  let consecutiveMatches = 0;
   const scannedCache = {};
 
-  window.onload = function() { 
-    loadStoreList(); 
-  };
+  window.onload = function() { loadStoreList(); };
   
   function loadStoreList() {
     fetch(`${API_URL}?action=getStores`)
@@ -236,11 +184,16 @@
   function startScanner() {
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
+    const btnTorch = document.getElementById('btnTorch');
 
     scannerBox.style.display = "block";
     btn.innerText = "🛑 ปิดกล้อง";
     btn.classList.add("active");
+    btnTorch.style.display = "flex";
     isScanning = true;
+
+    lastDetectedCode = "";
+    consecutiveMatches = 0;
 
     Quagga.init({
       inputStream: {
@@ -249,34 +202,19 @@
         target: document.querySelector('#scanner-box'),
         constraints: {
           facingMode: "environment",
-          width: { min: 640, ideal: 1280, max: 1920 }, // ปรับความละเอียดเป็น HD เพิ่มความคมชัด
+          width: { min: 640, ideal: 1280, max: 1920 },
           height: { min: 480, ideal: 720, max: 1080 },
           aspectRatio: { min: 1, max: 2 }
         },
-        // 🎯 ล็อคพื้นที่ตรวจจับเฉพาะบริเวณกึ่งกลางกรอบสแกน
-        area: {
-          top: "20%",
-          right: "10%",
-          left: "10%",
-          bottom: "20%"
-        }
+        area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
       },
-      locator: {
-        patchSize: "medium",
-        halfSample: false // คงความละเอียดภาพเต็ม ช่วยให้อ่านเส้นบาร์โค้ดได้แม่นยำขึ้น
-      },
+      locator: { patchSize: "medium", halfSample: false },
       numOfWorkers: navigator.hardwareConcurrency || 4,
-      decoder: {
-        readers: [
-          "ean_reader" // 🎯 อ่านเฉพาะ EAN-13 เท่านั้น
-        ],
-        multiple: false
-      },
+      decoder: { readers: ["ean_reader"], multiple: false },
       locate: true
     }, function(err) {
       if (err) {
-        console.error("Quagga Error:", err);
-        alert("ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งานกล้อง");
+        alert("ไม่สามารถเข้าถึงกล้องได้");
         stopScanner();
         return;
       }
@@ -288,32 +226,54 @@
 
   function stopScanner() {
     if (isScanning) {
+      if (isTorchOn) setTorch(false);
       Quagga.offDetected(onScanDetected);
       Quagga.stop();
       isScanning = false;
     }
 
     document.getElementById('scanner-box').style.display = "none";
-
     const btn = document.getElementById('btnToggleScan');
     btn.innerText = "📷 Scan Barcode";
     btn.classList.remove("active");
 
-    const hint = document.getElementById('scanner-hint');
-    if (hint) {
-      hint.innerText = "วาง Barcode ให้เต็มกรอบประมาณ 50–60%";
-      hint.style.color = "white";
-    }
+    const btnTorch = document.getElementById('btnTorch');
+    btnTorch.style.display = "none";
+    btnTorch.classList.remove("active");
   }
 
   function onScanDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
-      
-      // 🎯 ตรวจสอบความถูกต้อง: ต้องเป็นตัวเลขครบ 13 หลักเท่านั้น
       if (barcodeText.length === 13 && /^\d+$/.test(barcodeText)) {
-        Quagga.offDetected(onScanDetected); // ป้องกันสแกนซ้ำรวดเดียว
-        onScanSuccess(barcodeText);
+        if (barcodeText === lastDetectedCode) {
+          consecutiveMatches++;
+        } else {
+          lastDetectedCode = barcodeText;
+          consecutiveMatches = 1;
+        }
+
+        if (consecutiveMatches >= 3) {
+          Quagga.offDetected(onScanDetected);
+          onScanSuccess(barcodeText);
+        }
+      }
+    }
+  }
+
+  function toggleTorch() { setTorch(!isTorchOn); }
+
+  function setTorch(enable) {
+    const track = Quagga.CameraAccess.getActiveTrack();
+    if (track && typeof track.getCapabilities === 'function') {
+      const capabilities = track.getCapabilities();
+      if (capabilities.torch) {
+        track.applyConstraints({ advanced: [{ torch: enable }] }).then(() => {
+          isTorchOn = enable;
+          const btnTorch = document.getElementById('btnTorch');
+          if (enable) btnTorch.classList.add('active');
+          else btnTorch.classList.remove('active');
+        });
       }
     }
   }
@@ -327,10 +287,7 @@
 
   function lookupBarcode(barcode) {
     const cleanBarcode = barcode ? barcode.trim() : '';
-    if (!cleanBarcode) {
-      resetDisplayInfo();
-      return;
-    }
+    if (!cleanBarcode) { resetDisplayInfo(); return; }
 
     if (scannedCache[cleanBarcode]) {
       const res = scannedCache[cleanBarcode];
@@ -351,26 +308,21 @@
     setLoadingState(true, "⏳ กำลังดึงข้อมูล...");
 
     fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Network Error");
-        return res.json();
-      })
+      .then(res => res.json())
       .then(res => {
         scannedCache[cleanBarcode] = res;
-
         if (res && res.found) {
           currentProductData = res;
           document.getElementById('display-sku').innerText = res.sku || '-';
           document.getElementById('display-sku').className = "info-value";
           document.getElementById('display-product').innerText = res.product || '-';
-          setLoadingState(false);
         } else {
           currentProductData = { barcode: cleanBarcode, sku: '-', product: 'ไม่พบข้อมูล' };
           document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
           document.getElementById('display-sku').className = "info-value status-notFound";
           document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ";
-          setLoadingState(false);
         }
+        setLoadingState(false);
       })
       .catch(err => {
         document.getElementById('display-sku').innerText = "Error";
@@ -403,7 +355,6 @@
     currentProductData = null;
   }
 
-  /* 📌 ฟังก์ชันจัดการปุ่มกด +/- และเคลียร์ช่องว่าง */
   function changeQty(delta) {
     const qtyInput = document.getElementById('qty-input');
     let currentVal = parseInt(qtyInput.value) || 1;
@@ -419,9 +370,7 @@
 
   function handleQtyBlur(input) {
     if (input.value.trim() === '' || parseInt(input.value) <= 0) {
-      input.value = input.dataset.oldValue && parseInt(input.dataset.oldValue) > 0 
-                    ? input.dataset.oldValue 
-                    : '1';
+      input.value = input.dataset.oldValue && parseInt(input.dataset.oldValue) > 0 ? input.dataset.oldValue : '1';
     }
   }
 
@@ -451,20 +400,40 @@
     document.getElementById('barcode-input').focus();
   }
 
+  // 📌 ปรับการแสดงผลตาราง: เพิ่มเลขแถว และ ปุ่ม +/- ในตาราง
   function renderCart() {
     const tbody = document.getElementById('cart-list');
     tbody.innerHTML = '';
     cart.forEach((item, index) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
+        <td style="text-align:center; font-weight:bold; color:#718096;">${index + 1}</td>
         <td><b>${item.barcode}</b></td>
         <td><b>${item.product}</b></td>
-        <td style="text-align:center;"><b>${item.quantity}</b></td>
+        <td style="text-align:center;">
+          <div style="display:inline-flex; align-items:center; gap:3px;">
+            <button class="btn-table-qty" onclick="updateItemQty(${index}, -1)">-</button>
+            <span style="font-weight:bold; width:20px; text-align:center;">${item.quantity}</span>
+            <button class="btn-table-qty" onclick="updateItemQty(${index}, 1)">+</button>
+          </div>
+        </td>
         <td style="text-align:center;"><button class="btn-del" onclick="removeFromCart(${index})">X</button></td>
       `;
       tbody.appendChild(tr);
     });
     document.getElementById('cart-count').innerText = cart.length;
+  }
+
+  // 📌 ปรับจำนวนสินค้าจากตารางรายการ
+  function updateItemQty(index, delta) {
+    if (cart[index]) {
+      cart[index].quantity += delta;
+      if (cart[index].quantity <= 0) {
+        removeFromCart(index);
+      } else {
+        renderCart();
+      }
+    }
   }
 
   function removeFromCart(index) {
@@ -505,7 +474,6 @@
       document.getElementById('btnSubmit').disabled = false;
       document.getElementById('btnSubmit').innerText = "จบบิล";
       alert("ไม่สามารถบันทึกได้ โปรดตรวจสอบอินเทอร์เน็ตหรือ Web App URL");
-      console.error(err);
     });
   }
 </script>
