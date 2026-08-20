@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SALES SCAN SYSTEM</title>
   
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
   
   <style>
     * { 
@@ -31,14 +31,13 @@
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    /* Scanner Layout - Html5Qrcode Only */
+    /* Scanner Layout - Quagga2 Only */
     .scanner-wrapper { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
-    #reader-html5 { width: 100%; height: 100%; }
-    #reader-html5 video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
-    /* ซ่อน UI ดั้งเดิมของ html5-qrcode ทั้งหมด */
-    #reader-html5 #qr-shaded-region, #reader-html5 div[style*="border"], #reader-html5 img { display: none !important; }
+    #scanner-quagga { width: 100%; height: 100%; }
+    #scanner-quagga video, #scanner-quagga canvas { width: 100%; height: 100%; object-fit: cover; }
+    canvas.drawingBuffer { display: none !important; }
 
-    /* กรอบสแกนชั้นเดียวพร้อมเส้นสไลด์นิ่งตรงกลาง */
+    /* กรอบสแกนสี่เหลี่ยม + เส้นตรงกลางอยู่นิ่ง ไม่ขยับ */
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     .scanner-guide { 
       position: absolute; 
@@ -47,7 +46,6 @@
       border-radius: 8px; 
       box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
     }
-    /* เส้นตรงกลางอยู่นิ่ง ไม่เคลื่อนไหว (Static Red Line) */
     .scanner-guide::after { 
       content: ""; 
       position: absolute; 
@@ -105,7 +103,7 @@
     <label>สแกนบาร์โค้ด:</label>
 
     <div id="scanner-box" class="scanner-wrapper">
-      <div id="reader-html5"></div>
+      <div id="scanner-quagga"></div>
 
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
@@ -178,7 +176,6 @@
   let isScanning = false;
   const scannedCache = {};
 
-  let html5QrcodeScanner = null;
   let scanHistory = [];
   let cameraWatchdogTimer = null;
   let lastFrameTime = Date.now();
@@ -220,13 +217,13 @@
     scanHistory = [];
     lastFrameTime = Date.now();
 
-    startHtml5Scanner();
+    startQuaggaScanner();
     startWatchdog();
   }
 
   function stopScanner() {
     stopWatchdog();
-    stopHtml5Scanner();
+    stopQuaggaScanner();
 
     document.getElementById('scanner-box').style.display = "none";
     
@@ -236,7 +233,6 @@
     isScanning = false;
   }
 
-  // ระบบ Auto-Reset กล้องค้าง
   function startWatchdog() {
     stopWatchdog();
     cameraWatchdogTimer = setInterval(() => {
@@ -255,55 +251,76 @@
   function resetCameraSeamlessly() {
     lastFrameTime = Date.now();
     scanHistory = [];
-    stopHtml5Scanner();
-    setTimeout(() => { if (isScanning) startHtml5Scanner(); }, 300);
+    stopQuaggaScanner();
+    setTimeout(() => { if (isScanning) startQuaggaScanner(); }, 300);
   }
 
   // ==========================================
-  // ENGINE Html5Qrcode (1D, EAN_13, CODE_128)
+  // QUAGGA2 OPTIMIZED FOR OLD DEVICES
   // ==========================================
-  function startHtml5Scanner() {
-    if (!html5QrcodeScanner) {
-      html5QrcodeScanner = new Html5Qrcode("reader-html5");
-    }
-
-    const config = { 
-      fps: 25,
-      qrbox: { width: 280, height: 120 },
-      formatsToSupport: [ 
-        Html5QrcodeSupportedFormats.EAN_13, 
-        Html5QrcodeSupportedFormats.CODE_128 
-      ]
-    };
-
-    html5QrcodeScanner.start(
-      { facingMode: "environment" },
-      config,
-      (decodedText, decodedResult) => {
-        lastFrameTime = Date.now();
-        let formatName = decodedResult && decodedResult.result && decodedResult.result.format ? decodedResult.result.format.formatName : "";
-        processScanResult(decodedText.trim(), formatName);
+  function startQuaggaScanner() {
+    Quagga.init({
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector('#scanner-quagga'),
+        constraints: {
+          facingMode: "environment",
+          // ลดความละเอียดลงเพื่อให้เครื่องรุ่นเก่าประมวลผลได้เร็วและไม่ค้าง
+          width: { min: 320, ideal: 640 },
+          height: { min: 240, ideal: 480 }
+        },
+        area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
       },
-      () => {
-        lastFrameTime = Date.now();
+      locator: { 
+        patchSize: "small", // ปรับเป็น small ช่วยให้เครื่องเก่าคำนวณเร็วขึ้น
+        halfSample: true 
+      },
+      numOfWorkers: 0, // ตั้งเป็น 0 เพื่อบังคับให้วิ่งบน Main Thread ไม่สร้าง Overheads ให้เครื่องเก่า
+      decoder: { 
+        readers: ["ean_reader", "code_128_reader"],
+        multiple: false 
+      },
+      locate: false // ปิดระบบวาดกรอบเขียวของ Quagga เพื่อประหยัด CPU/GPU
+    }, function(err) {
+      if (err) {
+        alert("ไม่สามารถเปิดกล้องได้ โปรดตรวจสอบการอนุญาตใช้งานกล้อง");
+        stopScanner();
+        return;
       }
-    ).catch(err => {
-      alert("ไม่สามารถเปิดกล้องได้ โปรดตรวจสอบการอนุญาตใช้งานกล้อง");
-      stopScanner();
+      Quagga.start();
     });
+
+    Quagga.onProcessed(onQuaggaProcessed);
+    Quagga.onDetected(onQuaggaDetected);
   }
 
-  function stopHtml5Scanner() {
-    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-      html5QrcodeScanner.stop().catch(err => console.error(err));
+  function stopQuaggaScanner() {
+    try {
+      Quagga.offProcessed(onQuaggaProcessed);
+      Quagga.offDetected(onQuaggaDetected);
+      Quagga.stop();
+    } catch(e) {}
+  }
+
+  function onQuaggaProcessed(result) {
+    lastFrameTime = Date.now();
+  }
+
+  function onQuaggaDetected(result) {
+    lastFrameTime = Date.now();
+    if (result && result.codeResult && result.codeResult.code) {
+      let barcodeText = result.codeResult.code.trim();
+      let format = result.codeResult.format;
+      processScanResult(barcodeText, format);
     }
   }
 
   // ==========================================
   // RECHECK LOGIC (ความถูกต้อง 3 ใน 5)
   // ==========================================
-  function processScanResult(barcodeText, formatName) {
-    if (formatName.includes("EAN_13") && barcodeText.length !== 13) return;
+  function processScanResult(barcodeText, format) {
+    if (format === "ean_13" && barcodeText.length !== 13) return;
     if (barcodeText.length < 3) return;
 
     scanHistory.push(barcodeText);
