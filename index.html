@@ -190,10 +190,8 @@
     scanHistory = [];
     lastProcessedTime = Date.now();
 
-    // 💡 เช็คสเปคเครื่องอัตโนมัติ (CPU Cores)
     const cpuCores = navigator.hardwareConcurrency || 2;
-    const isOldDevice = cpuCores <= 2; // ถ้ามี CPU <= 2 Cores ถือเป็นเครื่องรุ่นเก่า/สเปกต่ำ
-
+    const isOldDevice = cpuCores <= 2;
     Quagga.init({
       inputStream: {
         name: "Live",
@@ -201,7 +199,6 @@
         target: document.querySelector('#scanner-box'),
         constraints: {
           facingMode: "environment",
-          // เครื่องเก่าใช้ 640x480 | เครื่องใหม่ใช้ 1280x720
           width: { ideal: isOldDevice ? 640 : 1280 },
           height: { ideal: isOldDevice ? 480 : 720 },
           advanced: [{ focusMode: "continuous" }]
@@ -210,9 +207,9 @@
       },
       locator: { 
         patchSize: "medium", 
-        halfSample: isOldDevice // เครื่องเก่าเปิด halfSample เพื่อประมวลผลเร็วขึ้น 2 เท่า
+        halfSample: isOldDevice
       },
-      numOfWorkers: isOldDevice ? 1 : 2, // เครื่องเก่าใช้ 1 Worker กันค้าง | เครื่องใหม่ใช้ 2 Workers
+      numOfWorkers: isOldDevice ? 1 : 2,
       decoder: { readers: ["ean_reader"], multiple: false },
       locate: true
     }, function(err) {
