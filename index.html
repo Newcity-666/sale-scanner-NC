@@ -31,15 +31,17 @@
     .form-group { margin-bottom: 12px; }
     label { font-weight: bold; font-size: 15px; color: #1a202c; display: block; margin-bottom: 4px; }
     
-    .scanner-container { position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
-    .scanner-container video { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block; }
+    /* แก้ไขส่วนนี้: ปรับกล่องสแกนให้อยู่ในอัตราส่วนธรรมชาติเพื่อไม่ให้ภาพเบี้ยว */
+    .scanner-container { position: relative; width: 100%; min-height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
+    .scanner-container video { width: 100% !important; height: auto !important; display: block; }
+    #reader canvas { display: none !important; } 
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     
     .scanner-guide { 
       position: absolute; 
-      left: 15%; right: 15%; top: 20%; height: 50%; 
-      border: 2px solid rgba(255, 255, 255, 0.6);
+      left: 10%; right: 10%; top: 20%; height: 55%; 
+      border: 2px solid rgba(255, 255, 255, 0.8);
       border-radius: 8px; 
       box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
     }
@@ -54,7 +56,7 @@
       animation: scan-red 1.5s infinite linear alternate; 
     }
     
-    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
+    .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
     
     @keyframes scan-red { 
       0% { top: 0%; } 
@@ -107,7 +109,7 @@
     <label>สแกนบาร์โค้ด:</label>
     
     <div id="scanner-box" class="scanner-container">
-      <video id="webcam-video" playsinline autoplay muted></video>
+      <div id="reader" style="width: 100%;"></div>
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
         <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้อยู่ในกรอบ</div>
@@ -178,7 +180,6 @@
   let cart = [];
   let isScanning = false;
   let html5QrcodeScanner = null;
-  let videoStream = null;
   const scannedCache = {};
   
   let lastScannedCode = "";
@@ -208,70 +209,67 @@
     else startScanner();
   }
 
-  async function startScanner() {
+  function startScanner() {
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
-    const video = document.getElementById('webcam-video');
 
     scannerBox.style.display = "block";
     btn.innerText = "🛑 ปิดกล้อง";
     btn.classList.add("active");
     isScanning = true;
+    lastScannedCode = "";
 
-    // Direct MediaDevices Call (เปิดกล้องตรงไม่ผ่าน Library)
-    try {
-      const constraints = {
-        video: { facingMode: { exact: "environment" } }
-      };
-      videoStream = await navigator.mediaDevices.getUserMedia(constraints).catch(async () => {
-        // Fallback หากเครื่องไม่รองรับ exact environment
-        return await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      });
-
-      video.srcObject = videoStream;
-      await video.play();
-
-      // สั่งให้ Library ดึงเฟรมจาก HTML Video Element มาสแกน
-      if (!html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("scanner-box");
-      }
-
-      html5QrcodeScanner.start(
-        videoStream.getVideoTracks()[0].getSettings().deviceId || { facingMode: "environment" },
-        { fps: 10, formatsToSupport: [ Html5QrcodeSupportedFormats.EAN_13 ] },
-        (decodedText) => {
-          let cleanText = decodedText.trim();
-          const now = Date.now();
-          if (cleanText.length === 13 && /^\d+$/.test(cleanText)) {
-            if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
-              lastScannedCode = cleanText;
-              lastScannedTime = now;
-              onScanSuccess(cleanText);
-            }
-          }
-        },
-        () => {}
-      ).catch(() => {});
-
-    } catch (err) {
-      alert("❌ ไม่สามารถเปิดกล้องได้:\n1. ตรวจสอบว่าเปิดเว็บด้วย HTTPS\n2. เปิดด้วย Safari หรือ Chrome โดยตรง (ไม่เปิดผ่าน LINE/FB)\n\nรายละเอียด Error: " + err.message);
-      stopScanner();
+    if (!html5QrcodeScanner) {
+      html5QrcodeScanner = new Html5Qrcode("reader");
     }
+
+    // ปรับแต่ง Engine สแกน: ไม่จำกัดประเภทบาร์โค้ด และใช้ความถี่ถอดรหัส 15 fps
+    const config = { 
+      fps: 15,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      // นำ formatsToSupport ออก เพื่อเปิดให้อ่านได้ทุกฟอร์แมตในโลก (Code128, Code39, EAN, UPC, QR)
+    };
+
+    html5QrcodeScanner.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        let cleanText = decodedText.trim();
+        const now = Date.now();
+        
+        // รับโค้ดที่มีความยาวมากกว่า 3 ตัวอักษรขึ้นไป
+        if (cleanText.length >= 3) {
+          if (cleanText !== lastScannedCode || (now - lastScannedTime > 2000)) {
+            lastScannedCode = cleanText;
+            lastScannedTime = now;
+            onScanSuccess(cleanText);
+          }
+        }
+      },
+      (errorMessage) => { /* ไม่สแกนก็ให้ทำงานเงียบๆ */ }
+    ).catch(err => {
+      console.error("Scan error:", err);
+      alert("เปิดกล้องไม่สำเร็จ โปรดลองใหม่อีกครั้ง");
+      stopScanner();
+    });
   }
 
   function stopScanner() {
-    if (html5QrcodeScanner) {
-      html5QrcodeScanner.stop().catch(() => {});
+    if (isScanning && html5QrcodeScanner) {
+      html5QrcodeScanner.stop().then(() => {
+        isScanning = false;
+        document.getElementById('scanner-box').style.display = "none";
+        const btn = document.getElementById('btnToggleScan');
+        btn.innerText = "📷 เปิดกล้องสแกน";
+        btn.classList.remove("active");
+      }).catch(err => console.error(err));
+    } else {
+      document.getElementById('scanner-box').style.display = "none";
+      const btn = document.getElementById('btnToggleScan');
+      btn.innerText = "📷 เปิดกล้องสแกน";
+      btn.classList.remove("active");
+      isScanning = false;
     }
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
-      videoStream = null;
-    }
-    document.getElementById('scanner-box').style.display = "none";
-    const btn = document.getElementById('btnToggleScan');
-    btn.innerText = "📷 เปิดกล้องสแกน";
-    btn.classList.remove("active");
-    isScanning = false;
   }
 
   function onScanSuccess(barcodeText) {
