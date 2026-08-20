@@ -33,8 +33,6 @@
     .scan-btn-group { display: flex; gap: 8px; }
     .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
     .btn-scan.active { background: #e53e3e; }
-    .btn-torch { width: 50px; background: #718096; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; display: none; align-items: center; justify-content: center; }
-    .btn-torch.active { background: #d69e2e; }
 
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
     .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
@@ -87,7 +85,6 @@
 
     <div class="scan-btn-group">
       <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
-      <button id="btnTorch" class="btn-torch" onclick="toggleTorch()" title="เปิด/ปิด ไฟฉาย">🔦</button>
     </div>
     
     <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onchange="lookupBarcode(this.value)">
@@ -149,10 +146,7 @@
   let currentProductData = null;
   let cart = [];
   let isScanning = false;
-  let isTorchOn = false;
-
   let scanHistory = []; // เก็บประวัติสแกนเพื่อรีเช็ค 3 ใน 5
-  let lastCheckTime = 0;
   const scannedCache = {};
 
   window.onload = function() { loadStoreList(); };
@@ -182,12 +176,10 @@
   function startScanner() {
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
-    const btnTorch = document.getElementById('btnTorch');
 
     scannerBox.style.display = "block";
     btn.innerText = "🛑 ปิดกล้อง";
     btn.classList.add("active");
-    btnTorch.style.display = "flex";
     isScanning = true;
 
     scanHistory = []; // ล้างประวัติสแกน
@@ -201,7 +193,7 @@
           facingMode: "environment",
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          // 🎯 กระตุ้น Auto Focus ต่อเนื่องสำหรับรุ่นเก่า
+          // กระตุ้น Auto Focus ต่อเนื่องสำหรับรุ่นเก่า
           advanced: [{ focusMode: "continuous" }]
         },
         area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
@@ -217,7 +209,7 @@
         return;
       }
       
-      // 🎯 สั่งซูมเล็กน้อย 1.2x-1.5x เพื่อช่วยเรื่องระยะโฟกัสระยะใกล้ในรุ่นเก่า
+      // สั่งซูมเล็กน้อย 1.3x เพื่อช่วยระยะโฟกัสบนมือถือรุ่นเก่า
       try {
         const track = Quagga.CameraAccess.getActiveTrack();
         if (track && typeof track.getCapabilities === 'function') {
@@ -232,14 +224,11 @@
     });
 
     Quagga.onDetected(onScanDetected);
-    Quagga.onProcessed(checkLuminance); // 🎯 ตรวจจับแสงน้อย
   }
 
   function stopScanner() {
     if (isScanning) {
-      if (isTorchOn) setTorch(false);
       Quagga.offDetected(onScanDetected);
-      Quagga.offProcessed(checkLuminance);
       Quagga.stop();
       isScanning = false;
     }
@@ -248,13 +237,9 @@
     const btn = document.getElementById('btnToggleScan');
     btn.innerText = "📷 Scan Barcode";
     btn.classList.remove("active");
-
-    const btnTorch = document.getElementById('btnTorch');
-    btnTorch.style.display = "none";
-    btnTorch.classList.remove("active");
   }
 
-  // 🎯 ฟังก์ชันรีเช็ค 3 ใน 5 ครั้ง (ป้องกันการสแกนผิดพลาด)
+  // ฟังก์ชันรีเช็ค 3 ใน 5 ครั้ง (ช่วยลดความผิดพลาด)
   function onScanDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
       let barcodeText = result.codeResult.code.trim();
@@ -267,62 +252,11 @@
         const counts = {};
         scanHistory.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-        // ถ้าพบเลขเดียวกัน 3 ครั้งขึ้นไปใน 5 ครั้งล่าสุด
+        // ถ้าระบบอ่านได้เลขเดียวกัน 3 ครั้งขึ้นไปใน 5 ครั้งล่าสุด
         if (counts[barcodeText] >= 3) {
           Quagga.offDetected(onScanDetected);
           onScanSuccess(barcodeText);
         }
-      }
-    }
-  }
-
-  // 🎯 ฟังก์ชันตรวจจับระดับแสง
-  function checkLuminance(result) {
-    const now = Date.now();
-    if (now - lastCheckTime < 1000) return; // คำนวณทุก 1 วินาที
-    lastCheckTime = now;
-
-    if (result && result.canvas && result.canvas.ctx && result.canvas.ctx.overlay) {
-      const ctx = result.canvas.ctx.overlay;
-      const canvas = ctx.canvas;
-      if (!canvas) return;
-
-      try {
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        let sum = 0;
-        
-        for (let i = 0; i < data.length; i += 16) {
-          sum += (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-        }
-        
-        const avgLuminance = sum / (data.length / 16);
-        const hintElem = document.getElementById('scanner-hint');
-        
-        if (avgLuminance < 40) { // ถ้าระดับแสงน้อยกว่า 40
-          hintElem.innerText = "⚠️ แสงน้อยเกินไป กรุณาเพิ่มแสงสว่าง";
-          hintElem.style.color = "#f6e05e";
-        } else {
-          hintElem.innerText = "วาง Barcode ให้เต็มกรอบประมาณ 50–60%";
-          hintElem.style.color = "#ffffff";
-        }
-      } catch (e) {}
-    }
-  }
-
-  function toggleTorch() { setTorch(!isTorchOn); }
-
-  function setTorch(enable) {
-    const track = Quagga.CameraAccess.getActiveTrack();
-    if (track && typeof track.getCapabilities === 'function') {
-      const capabilities = track.getCapabilities();
-      if (capabilities.torch) {
-        track.applyConstraints({ advanced: [{ torch: enable }] }).then(() => {
-          isTorchOn = enable;
-          const btnTorch = document.getElementById('btnTorch');
-          if (enable) btnTorch.classList.add('active');
-          else btnTorch.classList.remove('active');
-        });
       }
     }
   }
@@ -472,7 +406,6 @@
     document.getElementById('cart-count').innerText = cart.length;
   }
 
-  // 📌 ปรับจำนวนสินค้าในรายการ (ขั้นต่ำคือ 1)
   function updateItemQty(index, delta) {
     if (cart[index]) {
       let newQty = cart[index].quantity + delta;
