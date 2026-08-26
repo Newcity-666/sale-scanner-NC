@@ -198,8 +198,7 @@
         constraints: {
           facingMode: "environment",
           width: { ideal: 1280 },
-          height: { ideal: 720 },
-          advanced: [{ focusMode: "continuous" }]
+          height: { ideal: 720 }
         },
         area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
       },
@@ -210,7 +209,6 @@
     }, function(err) {
       if (err) {
         console.error("Quagga Init Error:", err);
-        // หากเปิดกล้องไม่สำเร็จ ให้พยายามเปิดใหม่อีกครั้ง
         handleScannerError();
         return;
       }
@@ -226,12 +224,10 @@
       } catch (e) {}
 
       Quagga.start();
-      startWatchdog(); // เริ่มระบบตรวจจับกล้องค้าง
+      startWatchdog();
     });
 
     Quagga.onDetected(onScanDetected);
-    
-    // ตรวจจับทุกครั้งที่ Quagga ประมวลผลเฟรมภาพ
     Quagga.onProcessed(onFrameProcessed);
   }
 
@@ -252,20 +248,15 @@
     btn.classList.remove("active");
   }
 
-  // --- ฟังก์ชันระบบ Auto-Recovery (ตรวจจับและรีเซ็ต) ---
-
   function onFrameProcessed(result) {
-    // อัปเดตเวลาล่าสุดที่เฟรมภาพยังคงทำงานอยู่
     lastProcessedTime = Date.now();
   }
 
   function startWatchdog() {
     stopWatchdog();
-    // ตรวจสอบความเคลื่อนไหวของกล้องทุกๆ 1.5 วินาที
     watchdogTimer = setInterval(() => {
       if (isScanning && !isRecovering) {
         const timeDiff = Date.now() - lastProcessedTime;
-        // ถ้าไม่มีการประมวลผลเฟรมภาพเกิน 3 วินาที (กล้องค้างหรือ crash)
         if (timeDiff > 3000) {
           console.warn("กล้องค้างหรือสคริปต์หยุดทำงาน สั่งรีสตาร์ทกล้องอัตโนมัติ...");
           restartScannerAuto();
@@ -291,7 +282,6 @@
     if (isRecovering) return;
     isRecovering = true;
     
-    // ทำการรีเซ็ตกล้องเงียบๆ ใน 0.5 วินาที
     try {
       Quagga.offDetected(onScanDetected);
       Quagga.offProcessed(onFrameProcessed);
@@ -305,8 +295,6 @@
       }
     }, 500);
   }
-
-  // -----------------------------------------------------
 
   function onScanDetected(result) {
     if (result && result.codeResult && result.codeResult.code) {
