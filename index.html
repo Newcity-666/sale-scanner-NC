@@ -30,9 +30,12 @@
     .scanner-hint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: white; font-size: 13px; font-weight: 600; text-shadow: 0 1px 3px #000; padding: 0 4px; }
     @keyframes scan { 0% { transform: translateY(-55px); } 100% { transform: translateY(55px); } }
 
-    .scan-btn-group { display: flex; gap: 8px; }
-    .btn-scan { flex: 1; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
+    .scan-btn-group { display: flex; gap: 8px; flex-direction: column; }
+    .btn-scan { width: 100%; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
     .btn-scan.active { background: #e53e3e; }
+    
+    .btn-file-upload { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; display: inline-block; }
+    .btn-file-upload:active { background: #2d3748; }
 
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
     .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
@@ -84,7 +87,11 @@
     </div>
 
     <div class="scan-btn-group">
-      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
+      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷  Scan Barcode</button>
+      
+      <!-- ปุ่มและ Input ถ่ายภาพตรงๆ (บังคับเปิดกล้องหลัง ไม่ดึงจากอัลบั้ม) -->
+      <label for="image-input" class="btn-file-upload">📸 ถ่ายภาพ(กรณีสแกนไม่ติด)</label>
+      <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="decodeImageFile(this)">
     </div>
     
     <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onchange="lookupBarcode(this.value)">
@@ -246,6 +253,39 @@
     const btn = document.getElementById('btnToggleScan');
     btn.innerText = "📷 Scan Barcode";
     btn.classList.remove("active");
+  }
+
+  // --- ฟังก์ชันอ่าน Barcode จากรูปถ่ายสด ---
+  function decodeImageFile(input) {
+    if (!input.files || !input.files[0]) return;
+
+    if (isScanning) stopScanner();
+
+    setLoadingState(true, "⏳ กำลังอ่าน Barcode จากภาพ...");
+
+    const file = input.files[0];
+    const src = URL.createObjectURL(file);
+
+    Quagga.decodeSingle({
+      src: src,
+      numOfWorkers: 0,
+      decoder: {
+        readers: ["ean_reader"]
+      },
+      locate: true
+    }, function(result) {
+      URL.revokeObjectURL(src);
+      input.value = '';
+
+      if (result && result.codeResult && result.codeResult.code) {
+        const barcodeText = result.codeResult.code.trim();
+        onScanSuccess(barcodeText);
+      } else {
+        setLoadingState(false);
+        alert("⚠️ ไม่สามารถอ่านบาร์โค้ดจากภาพนี้ได้ โปรดถ่ายภาพให้ชัดเจนและลองใหม่อีกครั้ง");
+        resetDisplayInfo();
+      }
+    });
   }
 
   function onFrameProcessed(result) {
