@@ -37,6 +37,10 @@
     .btn-file-upload { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; display: inline-block; }
     .btn-file-upload:active { background: #2d3748; }
 
+    /* พรีวิวภาพถ่ายและการตีกรอบ */
+    .photo-preview-box { position: relative; width: 100%; margin-top: 8px; display: none; text-align: center; border: 2px dashed #cbd5e0; border-radius: 8px; padding: 4px; background: #000; }
+    .photo-preview-box canvas { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto; }
+
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
     .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
     .info-row:last-child { margin-bottom: 0; }
@@ -44,7 +48,7 @@
     .info-value { flex: 1; color: #000000; font-weight: bold; word-break: break-word; font-size: 17px; }
     .status-notFound { color: #e53e3e; font-size: 15px; }
     .status-loading { color: #d69e2e; }
-    
+
     .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .qty-control { display: flex; align-items: center; gap: 6px; }
     .qty-input { width: 80px !important; text-align: center; font-weight: bold; font-size: 20px !important; padding: 6px !important; height: 45px; }
@@ -63,6 +67,9 @@
     .btn-table-qty { width: 24px; height: 24px; background: #e2e8f0; border: 1px solid #cbd5e0; border-radius: 4px; font-weight: bold; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .btn-table-qty:active { background: #cbd5e0; }
     .btn-del { background: #e53e3e; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
+
+    .text-loading { color: #d69e2e; font-style: italic; }
+    .text-error { color: #e53e3e; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -87,14 +94,18 @@
     </div>
 
     <div class="scan-btn-group">
-      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷  Scan Barcode</button>
+      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
       
-      <!-- ปุ่มและ Input ถ่ายภาพตรงๆ (บังคับเปิดกล้องหลัง ไม่ดึงจากอัลบั้ม) -->
-      <label for="image-input" class="btn-file-upload">📸 ถ่ายภาพ(กรณีสแกนไม่ติด)</label>
-      <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="decodeImageFile(this)">
+      <label for="image-input" class="btn-file-upload">📸 ถ่ายภาพเพื่อสแกน(กรณี Scan ไม่ติด)</label>
+      <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoUpload(this)">
+    </div>
+
+    <!-- พื้นที่แสดงรูปภาพถ่ายพร้อมตีกรอบจุดอ่าน Barcode -->
+    <div id="photo-preview-box" class="photo-preview-box">
+      <canvas id="photo-canvas"></canvas>
     </div>
     
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onchange="lookupBarcode(this.value)">
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode หรือสแกนเพื่อเพิ่มทันที" onchange="handleManualInput(this.value)">
   </div>
 
   <div class="info-card">
@@ -118,7 +129,7 @@
   </div>
 
   <div class="action-buttons">
-    <button class="btn-add" id="btnAdd" onclick="addToCart()" disabled>+ เพิ่มรายการ</button>
+    <button class="btn-add" id="btnAdd" onclick="manualAddToCart()">+ เพิ่มรายการ</button>
     <button class="btn-finish" id="btnSubmit" onclick="submitBill()">จบบิล</button>
   </div>
 
@@ -150,13 +161,11 @@
 
   const API_URL = "https://script.google.com/macros/s/AKfycbzXoqQQJYtOkUvdsmLKnd_-gw6G37olfCa1SyZl5VwahDSNkYAdsUTaGI6sCIhiW-Mzew/exec";
 
-  let currentProductData = null;
   let cart = [];
   let isScanning = false;
   let scanHistory = [];
   const scannedCache = {};
 
-  // --- ตัวแปรสำหรับระบบ Auto-Recovery (กันกล้องค้าง) ---
   let watchdogTimer = null;
   let lastProcessedTime = 0;
   let isRecovering = false;
@@ -186,6 +195,7 @@
   }
 
   function startScanner() {
+    hidePhotoPreview();
     const scannerBox = document.getElementById('scanner-box');
     const btn = document.getElementById('btnToggleScan');
 
@@ -255,37 +265,91 @@
     btn.classList.remove("active");
   }
 
-  // --- ฟังก์ชันอ่าน Barcode จากรูปถ่ายสด ---
-  function decodeImageFile(input) {
+  // --- ระบบประมวลผลรูปถ่าย (แก้ไขปัญหาสแกนไม่อ่าน + ตีกรอบ) ---
+  function handlePhotoUpload(input) {
     if (!input.files || !input.files[0]) return;
-
     if (isScanning) stopScanner();
 
-    setLoadingState(true, "⏳ กำลังอ่าน Barcode จากภาพ...");
-
     const file = input.files[0];
-    const src = URL.createObjectURL(file);
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        processAndDecodeImage(img);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  function processAndDecodeImage(img) {
+    const canvas = document.getElementById('photo-canvas');
+    const ctx = canvas.getContext('2d');
+    const previewBox = document.getElementById('photo-preview-box');
+
+    // ย่อขนาดภาพให้เหมาะสม (Max width 1000px) เพื่อให้อ่านบาร์โค้ดได้แม่นยำยิ่งขึ้น
+    const MAX_WIDTH = 1000;
+    let width = img.width;
+    let height = img.height;
+
+    if (width > MAX_WIDTH) {
+      height = Math.round((height * MAX_WIDTH) / width);
+      width = MAX_WIDTH;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    previewBox.style.display = 'block';
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
     Quagga.decodeSingle({
-      src: src,
+      src: dataUrl,
       numOfWorkers: 0,
-      decoder: {
-        readers: ["ean_reader"]
-      },
+      decoder: { readers: ["ean_reader"] },
       locate: true
     }, function(result) {
-      URL.revokeObjectURL(src);
-      input.value = '';
-
       if (result && result.codeResult && result.codeResult.code) {
         const barcodeText = result.codeResult.code.trim();
+
+        // ตีกรอบแสดงจุดที่อ่านบาร์โค้ดเจอบน Canvas
+        if (result.boxes || result.box) {
+          drawBarcodeBoxes(ctx, result.boxes || [result.box]);
+        }
+
         onScanSuccess(barcodeText);
       } else {
-        setLoadingState(false);
-        alert("⚠️ ไม่สามารถอ่านบาร์โค้ดจากภาพนี้ได้ โปรดถ่ายภาพให้ชัดเจนและลองใหม่อีกครั้ง");
-        resetDisplayInfo();
+        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดลองถ่ายใหม่อีกครั้ง");
+        hidePhotoPreview();
       }
     });
+  }
+
+  function drawBarcodeBoxes(ctx, boxes) {
+    ctx.strokeStyle = '#00FF00';
+    ctx.lineWidth = 6;
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+
+    boxes.forEach(box => {
+      if (box) {
+        ctx.beginPath();
+        ctx.moveTo(box[0][0], box[0][1]);
+        ctx.lineTo(box[1][0], box[1][1]);
+        ctx.lineTo(box[2][0], box[2][1]);
+        ctx.lineTo(box[3][0], box[3][1]);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fill();
+      }
+    });
+  }
+
+  function hidePhotoPreview() {
+    document.getElementById('photo-preview-box').style.display = 'none';
   }
 
   function onFrameProcessed(result) {
@@ -298,7 +362,6 @@
       if (isScanning && !isRecovering) {
         const timeDiff = Date.now() - lastProcessedTime;
         if (timeDiff > 3000) {
-          console.warn("กล้องค้างหรือสคริปต์หยุดทำงาน สั่งรีสตาร์ทกล้องอัตโนมัติ...");
           restartScannerAuto();
         }
       }
@@ -342,7 +405,6 @@
 
       if (barcodeText.length === 13 && /^\d+$/.test(barcodeText)) {
         scanHistory.push(barcodeText);
-
         if (scanHistory.length > 5) scanHistory.shift();
 
         const counts = {};
@@ -356,81 +418,158 @@
     }
   }
 
+  // --- 1. สแกนติดแล้ว Add เข้าบิลทันทีแบบไม่ต้องรอ ---
   function onScanSuccess(barcodeText) {
     stopScanner();
     document.getElementById('barcode-input').value = barcodeText;
     if (navigator.vibrate) navigator.vibrate(200);
-    lookupBarcode(barcodeText);
+
+    const qty = parseInt(document.getElementById('qty-input').value) || 1;
+    addBarcodeToCartImmediate(barcodeText, qty);
+
+    document.getElementById('barcode-input').value = '';
+    document.getElementById('qty-input').value = '1';
   }
 
-  function lookupBarcode(barcode) {
-    const cleanBarcode = barcode ? barcode.trim() : '';
-    if (!cleanBarcode) { resetDisplayInfo(); return; }
+  function handleManualInput(barcodeText) {
+    if (!barcodeText.trim()) return;
+    const qty = parseInt(document.getElementById('qty-input').value) || 1;
+    addBarcodeToCartImmediate(barcodeText.trim(), qty);
+    document.getElementById('barcode-input').value = '';
+    document.getElementById('qty-input').value = '1';
+  }
 
-    if (scannedCache[cleanBarcode]) {
-      const res = scannedCache[cleanBarcode];
-      currentProductData = res;
-      if (res.found) {
-        document.getElementById('display-sku').innerText = res.sku || '-';
-        document.getElementById('display-sku').className = "info-value";
-        document.getElementById('display-product').innerText = res.product || '-';
-      } else {
-        document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
-        document.getElementById('display-sku').className = "info-value status-notFound";
-        document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ";
-      }
-      setLoadingState(false);
+  function manualAddToCart() {
+    const barcodeText = document.getElementById('barcode-input').value.trim();
+    if (!barcodeText) {
+      alert("กรุณากรอกหรือสแกนบาร์โค้ด");
+      return;
+    }
+    const qty = parseInt(document.getElementById('qty-input').value) || 1;
+    addBarcodeToCartImmediate(barcodeText, qty);
+    document.getElementById('barcode-input').value = '';
+    document.getElementById('qty-input').value = '1';
+  }
+
+  function addBarcodeToCartImmediate(barcode, qty) {
+    if (cart.length >= 10) { 
+      alert("เพิ่มได้สูงสุด 10 รายการต่อบิล"); 
+      return; 
+    }
+
+    const existingIndex = cart.findIndex(item => item.barcode === barcode);
+    if (existingIndex > -1) {
+      cart[existingIndex].quantity += qty;
+      renderCart();
+    } else {
+      const newItem = {
+        barcode: barcode,
+        sku: '⏳...',
+        product: '⏳ กำลังดึงข้อมูล...',
+        quantity: qty,
+        loading: true,
+        error: false
+      };
+      cart.push(newItem);
+      renderCart();
+      fetchItemDataAsync(barcode);
+    }
+  }
+
+  // ดึงข้อมูลสินค้าเบื้องหลังแบบ Async
+  function fetchItemDataAsync(barcode) {
+    if (scannedCache[barcode]) {
+      updateCartItemData(barcode, scannedCache[barcode]);
       return;
     }
 
-    setLoadingState(true, "⏳ กำลังดึงข้อมูล...");
-
-    fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(cleanBarcode)}`)
+    fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(barcode)}`)
       .then(res => res.json())
       .then(res => {
-        scannedCache[cleanBarcode] = res;
-        if (res && res.found) {
-          currentProductData = res;
-          document.getElementById('display-sku').innerText = res.sku || '-';
-          document.getElementById('display-sku').className = "info-value";
-          document.getElementById('display-product').innerText = res.product || '-';
-        } else {
-          currentProductData = { barcode: cleanBarcode, sku: '-', product: 'ไม่พบข้อมูล' };
-          document.getElementById('display-sku').innerText = "ไม่พบข้อมูล";
-          document.getElementById('display-sku').className = "info-value status-notFound";
-          document.getElementById('display-product').innerText = "⚠️ ไม่พบ Barcode ในระบบ";
-        }
-        setLoadingState(false);
+        scannedCache[barcode] = res;
+        updateCartItemData(barcode, res);
       })
       .catch(err => {
-        document.getElementById('display-sku').innerText = "Error";
-        document.getElementById('display-sku').className = "info-value status-notFound";
-        document.getElementById('display-product').innerText = "⚠️ ขัดข้อง: เชื่อมต่อเซิร์ฟเวอร์ไม่ได้";
-        document.getElementById('btnAdd').disabled = true;
+        updateCartItemData(barcode, { found: false, error: true });
       });
   }
 
-  function setLoadingState(isLoading, message) {
-    const btnAdd = document.getElementById('btnAdd');
-    if (isLoading) {
-      btnAdd.disabled = true;
-      btnAdd.innerText = message || "⏳ กำลังดึงข้อมูล...";
-      document.getElementById('display-sku').innerText = "⏳...";
-      document.getElementById('display-sku').className = "info-value status-loading";
-      document.getElementById('display-product').innerText = "⏳...";
-    } else {
-      btnAdd.disabled = false;
-      btnAdd.innerText = "+ เพิ่มรายการ";
+  function updateCartItemData(barcode, res) {
+    const item = cart.find(i => i.barcode === barcode);
+    if (item) {
+      item.loading = false;
+      if (res && res.found) {
+        item.sku = res.sku || '-';
+        item.product = res.product || 'ไม่ระบุชื่อ';
+        item.error = false;
+      } else if (res && res.error) {
+        item.sku = 'Error';
+        item.product = '⚠️ เกิดข้อผิดพลาด';
+        item.error = true;
+      } else {
+        item.sku = 'ไม่พบ';
+        item.product = '⚠️ ไม่พบข้อมูลในระบบ';
+        item.error = true;
+      }
+      renderCart();
     }
   }
 
-  function resetDisplayInfo() {
-    document.getElementById('display-sku').innerText = "-";
-    document.getElementById('display-sku').className = "info-value";
-    document.getElementById('display-product').innerText = "-";
-    document.getElementById('btnAdd').disabled = true;
-    document.getElementById('btnAdd').innerText = "+ เพิ่มรายการ";
-    currentProductData = null;
+  function renderCart() {
+    const tbody = document.getElementById('cart-list');
+    tbody.innerHTML = '';
+    let hasLoadingItems = false;
+
+    cart.forEach((item, index) => {
+      if (item.loading) hasLoadingItems = true;
+
+      const tr = document.createElement('tr');
+      let productDisplay = item.product;
+      if (item.loading) productDisplay = `<span class="text-loading">⏳ กำลังดึงข้อมูล...</span>`;
+      else if (item.error) productDisplay = `<span class="text-error">${item.product}</span>`;
+
+      tr.innerHTML = `
+        <td style="text-align:center; font-weight:bold; color:#718096;">${index + 1}</td>
+        <td><b>${item.barcode}</b></td>
+        <td><b>${productDisplay}</b></td>
+        <td style="text-align:center;">
+          <div style="display:inline-flex; align-items:center; gap:3px;">
+            <button class="btn-table-qty" onclick="updateItemQty(${index}, -1)">-</button>
+            <span style="font-weight:bold; width:20px; text-align:center;">${item.quantity}</span>
+            <button class="btn-table-qty" onclick="updateItemQty(${index}, 1)">+</button>
+          </div>
+        </td>
+        <td style="text-align:center;"><button class="btn-del" onclick="removeFromCart(${index})">X</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('cart-count').innerText = cart.length;
+    
+    // อัปเดตสถานะปุ่มจบบิล (ถ้ารอโหลดข้อมูล ห้ามกดจบบิล)
+    const btnSubmit = document.getElementById('btnSubmit');
+    if (hasLoadingItems) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerText = "⏳ รอโหลดข้อมูล...";
+    } else {
+      btnSubmit.disabled = false;
+      btnSubmit.innerText = "จบบิล";
+    }
+  }
+
+  function updateItemQty(index, delta) {
+    if (cart[index]) {
+      let newQty = cart[index].quantity + delta;
+      if (newQty >= 1) {
+        cart[index].quantity = newQty;
+        renderCart();
+      }
+    }
+  }
+
+  function removeFromCart(index) {
+    cart.splice(index, 1);
+    renderCart();
   }
 
   function changeQty(delta) {
@@ -452,76 +591,18 @@
     }
   }
 
-  function addToCart() {
-    const barcode = document.getElementById('barcode-input').value.trim();
-    const qty = parseInt(document.getElementById('qty-input').value) || 1;
-
-    if (!barcode) return;
-    if (cart.length >= 10) { alert("เพิ่มได้สูงสุด 10 รายการต่อบิล"); return; }
-
-    const existingIndex = cart.findIndex(item => item.barcode === barcode);
-    if (existingIndex > -1) {
-      cart[existingIndex].quantity += qty;
-    } else {
-      cart.push({
-        barcode: barcode,
-        sku: currentProductData ? currentProductData.sku : '-',
-        product: currentProductData ? currentProductData.product : 'ไม่พบข้อมูล',
-        quantity: qty
-      });
-    }
-
-    renderCart();
-    document.getElementById('barcode-input').value = '';
-    resetDisplayInfo();
-    document.getElementById('qty-input').value = '1';
-  }
-
-  function renderCart() {
-    const tbody = document.getElementById('cart-list');
-    tbody.innerHTML = '';
-    cart.forEach((item, index) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="text-align:center; font-weight:bold; color:#718096;">${index + 1}</td>
-        <td><b>${item.barcode}</b></td>
-        <td><b>${item.product}</b></td>
-        <td style="text-align:center;">
-          <div style="display:inline-flex; align-items:center; gap:3px;">
-            <button class="btn-table-qty" onclick="updateItemQty(${index}, -1)">-</button>
-            <span style="font-weight:bold; width:20px; text-align:center;">${item.quantity}</span>
-            <button class="btn-table-qty" onclick="updateItemQty(${index}, 1)">+</button>
-          </div>
-        </td>
-        <td style="text-align:center;"><button class="btn-del" onclick="removeFromCart(${index})">X</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-    document.getElementById('cart-count').innerText = cart.length;
-  }
-
-  function updateItemQty(index, delta) {
-    if (cart[index]) {
-      let newQty = cart[index].quantity + delta;
-      if (newQty >= 1) {
-        cart[index].quantity = newQty;
-        renderCart();
-      }
-    }
-  }
-
-  function removeFromCart(index) {
-    cart.splice(index, 1);
-    renderCart();
-  }
-
   function submitBill() {
     const branch = document.getElementById('branch-input').value.trim();
     if (!branch) { alert("กรุณากรอกชื่อสาขา"); return; }
     if (cart.length === 0) { alert("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ"); return; }
 
+    const hasLoading = cart.some(item => item.loading);
+    if (hasLoading) {
+      alert("⚠️ กรุณารอให้ระบบดึงข้อมูลสินค้าเสร็จสิ้นก่อนจบบิล");
+      return;
+    }
+
     document.getElementById('btnSubmit').disabled = true;
-    document.getElementById('btnAdd').disabled = true;
     document.getElementById('btnSubmit').innerText = "⏳ กำลังบันทึก...";
 
     const payload = { branch: branch, items: cart };
@@ -540,6 +621,7 @@
         alert(`บันทึกเรียบร้อย!\nเลขที่บิล: ${res.billId}`);
         cart = [];
         renderCart();
+        hidePhotoPreview();
       } else {
         alert("เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: " + res.error);
       }
