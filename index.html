@@ -38,8 +38,9 @@
     .btn-file-upload { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; display: inline-block; }
     .btn-file-upload:active { background: #2d3748; }
 
-    /* 📌 ย่อขนาดกล่อง Preview ให้เล็กลงมากๆ และใส่ขอบเขียวเรืองแสง */
+    /* 📌 ย่อขนาดกล่อง Preview ให้เล็กลง และรองรับการเปลี่ยนสีขอบ */
     .photo-preview-box { position: relative; width: 120px; margin: 8px auto; display: none; text-align: center; border: 2px solid #38a169; border-radius: 8px; padding: 2px; background: #000; box-shadow: 0 0 8px rgba(56, 161, 105, 0.5); }
+    .photo-preview-box.error { border-color: #e53e3e; box-shadow: 0 0 8px rgba(229, 62, 62, 0.5); }
     .photo-preview-box canvas { width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto; }
 
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
@@ -299,6 +300,9 @@
     const ctx = canvas.getContext('2d');
     const previewBox = document.getElementById('photo-preview-box');
 
+    // รีเซ็ตขอบกล่อง Preview ให้เป็นสีเขียวเริ่มต้น
+    previewBox.classList.remove('error');
+
     const MAX_WIDTH = 1200;
     let width = img.width;
     let height = img.height;
@@ -314,16 +318,14 @@
     ctx.filter = 'none';
     ctx.drawImage(img, 0, 0, width, height);
 
-    // 📌 ฟังก์ชันช่วยวาดกรอบสีเขียวหนาครอบตำแหน่ง Barcode
+    // 📌 ฟังก์ชันช่วยวาดกรอบสีเขียวหนาครอบตำแหน่ง Barcode (กรณีหาเจอ)
     function drawGreenBoundingBox(box) {
       ctx.strokeStyle = '#00FF00';
-      ctx.lineWidth = Math.max(6, Math.round(width / 100)); // กำหนดขนาดความหนาเส้นตามความกว้างภาพ
+      ctx.lineWidth = Math.max(6, Math.round(width / 100));
       
       if (box.x !== undefined) {
-        // กรอบแบบ BoundingBox (x, y, width, height)
         ctx.strokeRect(box.x, box.y, box.width, box.height);
       } else if (Array.isArray(box) && box.length > 0) {
-        // กรอบแบบ Points (Polygon Coordinates)
         ctx.beginPath();
         ctx.moveTo(box[0].x, box[0].y);
         for (let i = 1; i < box.length; i++) {
@@ -332,6 +334,26 @@
         ctx.closePath();
         ctx.stroke();
       }
+    }
+
+    // 📌 ฟังก์ชันช่วยวาดกรอบสีแดงครอบรอบภาพ Canvas (กรณีหาไม่เจอ)
+    function drawRedFrame() {
+      const strokeWidth = Math.max(8, Math.round(width / 50));
+      ctx.strokeStyle = '#FF0000';
+      ctx.lineWidth = strokeWidth;
+      ctx.strokeRect(strokeWidth / 2, strokeWidth / 2, width - strokeWidth, height - strokeWidth);
+    }
+
+    // 📌 ฟังก์ชันจัดการกรณีสแกนไม่สำเร็จ (แสดงกรอบแดง + แจ้งเตือน + ลบรูปเดิม)
+    function handleNotFound() {
+      drawRedFrame();
+      previewBox.classList.add('error'); // เปลี่ยนขอบกล่อง preview ให้เป็นสีแดงด้วย
+      previewBox.style.display = 'block';
+
+      setTimeout(() => {
+        alert("⚠️ ไม่พบ Barcode โปรดลองถ่ายใหม่อีกครั้ง");
+        hidePhotoPreview();
+      }, 100);
     }
 
     // Tier 1: Native BarcodeDetector (Android/Chrome Engine)
@@ -388,14 +410,15 @@
         previewBox.style.display = 'block';
         onScanSuccess(result.codeResult.code.trim());
       } else {
-        alert("⚠️ ไม่พบ Barcode โปรดลองถ่ายใหม่อีกครั้ง");
-        hidePhotoPreview();
+        handleNotFound();
       }
     });
   }
 
   function hidePhotoPreview() {
-    document.getElementById('photo-preview-box').style.display = 'none';
+    const previewBox = document.getElementById('photo-preview-box');
+    previewBox.style.display = 'none';
+    previewBox.classList.remove('error');
   }
 
   function onFrameProcessed(result) {
