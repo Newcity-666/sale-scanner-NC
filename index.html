@@ -38,8 +38,9 @@
     .btn-file-upload { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; display: inline-block; }
     .btn-file-upload:active { background: #2d3748; }
 
-    .photo-preview-box { position: relative; width: 100%; margin-top: 8px; display: none; text-align: center; border: 2px dashed #cbd5e0; border-radius: 8px; padding: 4px; background: #000; }
-    .photo-preview-box canvas { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto; }
+    /* 📌 ย่อขนาดกล่อง Preview ให้เล็กลงมากๆ และใส่ขอบเขียวเรืองแสง */
+    .photo-preview-box { position: relative; width: 120px; margin: 8px auto; display: none; text-align: center; border: 2px solid #38a169; border-radius: 8px; padding: 2px; background: #000; box-shadow: 0 0 8px rgba(56, 161, 105, 0.5); }
+    .photo-preview-box canvas { width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto; }
 
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
     .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
@@ -298,7 +299,7 @@
     const ctx = canvas.getContext('2d');
     const previewBox = document.getElementById('photo-preview-box');
 
-    const MAX_WIDTH = 1600;
+    const MAX_WIDTH = 1200;
     let width = img.width;
     let height = img.height;
 
@@ -312,9 +313,28 @@
 
     ctx.filter = 'none';
     ctx.drawImage(img, 0, 0, width, height);
-    previewBox.style.display = 'block';
 
-    // Tier 1: ใช้ Native BarcodeDetector (รองรับทุกมุม 360° ระดับ OS)
+    // 📌 ฟังก์ชันช่วยวาดกรอบสีเขียวหนาครอบตำแหน่ง Barcode
+    function drawGreenBoundingBox(box) {
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = Math.max(6, Math.round(width / 100)); // กำหนดขนาดความหนาเส้นตามความกว้างภาพ
+      
+      if (box.x !== undefined) {
+        // กรอบแบบ BoundingBox (x, y, width, height)
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+      } else if (Array.isArray(box) && box.length > 0) {
+        // กรอบแบบ Points (Polygon Coordinates)
+        ctx.beginPath();
+        ctx.moveTo(box[0].x, box[0].y);
+        for (let i = 1; i < box.length; i++) {
+          ctx.lineTo(box[i].x, box[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+
+    // Tier 1: Native BarcodeDetector (Android/Chrome Engine)
     if ('BarcodeDetector' in window) {
       try {
         const detector = new BarcodeDetector({
@@ -322,29 +342,37 @@
         });
         const barcodes = await detector.detect(canvas);
         if (barcodes && barcodes.length > 0) {
-          onScanSuccess(barcodes[0].rawValue.trim());
+          const item = barcodes[0];
+          if (item.boundingBox) drawGreenBoundingBox(item.boundingBox);
+
+          previewBox.style.display = 'block';
+          onScanSuccess(item.rawValue.trim());
           return;
         }
       } catch (err) {
-        console.warn("Native BarcodeDetector ทำงานไม่สำเร็จ ถอยไปใช้ ZXing Engine:", err);
+        console.warn("Native BarcodeDetector ถอยไปใช้ ZXing Engine:", err);
       }
     }
 
-    // Tier 2: ใช้ ZXing Library (แม่นยำสูง รองรับแนวตั้ง/แนวนอน/เอียง และระยะใกล้-ไกลได้ดีเยี่ยม)
+    // Tier 2: ZXing Library
     if (window.ZXing) {
       try {
         const codeReader = new ZXing.BrowserMultiFormatReader();
         const result = await codeReader.decodeFromCanvas(canvas);
         if (result && result.getText()) {
+          const points = result.getResultPoints();
+          if (points && points.length > 0) drawGreenBoundingBox(points);
+
+          previewBox.style.display = 'block';
           onScanSuccess(result.getText().trim());
           return;
         }
       } catch (err) {
-        console.warn("ZXing ถอดรหัสภาพไม่สำเร็จ ถอยไปใช้ Quagga Fallback...", err);
+        console.warn("ZXing ถอดรหัสไม่สำเร็จ ถอยไปใช้ Quagga...", err);
       }
     }
 
-    // Tier 3: QuaggaJS Fallback (พร้อมสแกนภาพต้นฉบับ)
+    // Tier 3: QuaggaJS Fallback
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
     Quagga.decodeSingle({
@@ -355,8 +383,10 @@
       locator: { patchSize: "large", halfSample: false }
     }, function(result) {
       if (result && result.codeResult && result.codeResult.code) {
-        const barcodeText = result.codeResult.code.trim();
-        onScanSuccess(barcodeText);
+        if (result.box) drawGreenBoundingBox(result.box);
+
+        previewBox.style.display = 'block';
+        onScanSuccess(result.codeResult.code.trim());
       } else {
         alert("⚠️ ไม่พบ Barcode โปรดลองถ่ายใหม่อีกครั้ง");
         hidePhotoPreview();
