@@ -38,7 +38,6 @@
     .btn-file-upload { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; display: inline-block; }
     .btn-file-upload:active { background: #2d3748; }
 
-    /* 📌 ย่อขนาดกล่อง Preview ให้เล็กลง และรองรับการเปลี่ยนสีขอบ */
     .photo-preview-box { position: relative; width: 120px; margin: 8px auto; display: none; text-align: center; border: 2px solid #38a169; border-radius: 8px; padding: 2px; background: #000; box-shadow: 0 0 8px rgba(56, 161, 105, 0.5); }
     .photo-preview-box.error { border-color: #e53e3e; box-shadow: 0 0 8px rgba(229, 62, 62, 0.5); }
     .photo-preview-box canvas { width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto; }
@@ -103,8 +102,8 @@
       <canvas id="photo-canvas"></canvas>
     </div>
     
-    <!-- 📌 ปรับเปลี่ยนเป็นกด Enter เพื่อค้นหาข้อมูล -->
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode แล้วกด Enter" onkeydown="handleInputBarcodeKeyDown(event)">
+    <!-- 📌 เพิ่ม onblur เพื่อรองรับการกดค้นหาเมื่อออกจากช่องพิมพ์ -->
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode แล้วกด Enter หรือแตะที่อื่น" onkeydown="handleInputBarcodeKeyDown(event)" onblur="handleInputBarcodeBlur(this.value)">
   </div>
 
   <div class="info-card">
@@ -489,7 +488,7 @@
     previewBarcodeInfo(barcodeText);
   }
 
-  // 📌 ฟังก์ชันดักจับกด Enter ในช่องกรอก Barcode
+  // 📌 ฟังก์ชันดักจับเมื่อกด Enter ในช่องกรอก Barcode
   function handleInputBarcodeKeyDown(event) {
     if (event.key === 'Enter' || event.keyCode === 13) {
       event.preventDefault(); // ป้องกันการ Submit Form หรือ Reload หน้าเว็บ
@@ -500,6 +499,17 @@
         updateInfoDisplay('-', '-');
         activeFetchBarcode = null;
       }
+    }
+  }
+
+  // 📌 ฟังก์ชันดักจับเมื่อออกจากช่องพิมพ์ (Blur) บนโทรศัพท์/คอมพิวเตอร์
+  function handleInputBarcodeBlur(value) {
+    const barcodeText = value.trim();
+    if (barcodeText && barcodeText !== activeFetchBarcode) {
+      previewBarcodeInfo(barcodeText);
+    } else if (!barcodeText) {
+      updateInfoDisplay('-', '-');
+      activeFetchBarcode = null;
     }
   }
 
