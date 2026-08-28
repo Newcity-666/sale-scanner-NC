@@ -85,14 +85,14 @@
     <div id="scanner-box" class="scanner-container">
       <div class="scanner-overlay">
         <div class="scanner-guide"></div>
-        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้เต็มกรอบประมาณ 50–60%</div>
+        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้เต็มกรอบ</div>
       </div>
     </div>
 
     <div class="scan-btn-group">
       <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
       
-      <label for="image-input" class="btn-file-upload">📸 ถ่ายภาพเพื่อสแกน(กรณี Scan ไม่ติด)</label>
+      <label for="image-input" class="btn-file-upload">📸 ถ่ายภาพ (กรณี Scan ไม่ติด)</label>
       <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoUpload(this)">
     </div>
 
@@ -100,7 +100,7 @@
       <canvas id="photo-canvas"></canvas>
     </div>
     
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode หรือสแกนเพื่ออ่านค่า" oninput="handleInputBarcodeChange(this.value)">
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" oninput="handleInputBarcodeChange(this.value)">
   </div>
 
   <div class="info-card">
@@ -160,7 +160,7 @@
   let isScanning = false;
   let scanHistory = [];
   const scannedCache = {};
-  let activeFetchBarcode = null; // บาร์โค้ดที่กำลังดึงข้อมูลอยู่ฝั่ง Header Preview
+  let activeFetchBarcode = null;
 
   let watchdogTimer = null;
   let lastProcessedTime = 0;
@@ -329,7 +329,7 @@
 
         onScanSuccess(barcodeText);
       } else {
-        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดลองถ่ายใหม่อีกครั้ง");
+        alert("⚠️ ไม่พบ Barcode โปรดลองถ่ายใหม่อีกครั้ง");
         hidePhotoPreview();
       }
     });
@@ -424,28 +424,25 @@
     }
   }
 
-  // อ่าน Barcode เจอ -> ใส่ค่า และดึงข้อมูลสินค้าทันทีเพื่อโชว์ใน SKU/สินค้า
   function onScanSuccess(barcodeText) {
     stopScanner();
     document.getElementById('barcode-input').value = barcodeText;
     if (navigator.vibrate) navigator.vibrate(200);
     
-    // ดึงข้อมูลล่วงหน้าทันทีเพื่อโชว์สถานะโหลด
     previewBarcodeInfo(barcodeText);
   }
 
-  // ดักจับเหตุการณ์ พิมพ์/วางบาร์โค้ด ในช่อง Input
   function handleInputBarcodeChange(barcodeText) {
     const cleanBarcode = barcodeText.trim();
     if (cleanBarcode.length >= 8) {
       previewBarcodeInfo(cleanBarcode);
-    } else if (cleanBarcode.length === 0) {
+    } else {
+      // หากช่อง Input เป็นค่าว่าง หรือสั้นเกินไป ให้รีเซ็ตกลับเป็น "-"
       updateInfoDisplay('-', '-');
       activeFetchBarcode = null;
     }
   }
 
-  // ฟังก์ชันดึงข้อมูลมาแสดงที่ Info Card (SKU / สินค้า)
   function previewBarcodeInfo(barcode) {
     if (scannedCache[barcode]) {
       const res = scannedCache[barcode];
@@ -457,7 +454,6 @@
       return;
     }
 
-    // แสดงสถานะโหลดทันที
     updateInfoDisplay('⏳...', '⏳ กำลังดึงข้อมูล...');
     activeFetchBarcode = barcode;
 
@@ -465,7 +461,6 @@
       .then(res => res.json())
       .then(res => {
         scannedCache[barcode] = res;
-        // ตรวจสอบว่าตรงกับบาร์โค้ดล่าสุดในช่อง input หรือไม่
         const currentInput = document.getElementById('barcode-input').value.trim();
         if (currentInput === barcode) {
           if (res && res.found) {
@@ -483,7 +478,6 @@
       });
   }
 
-  // กดปุ่ม "+ เพิ่มรายการ" เพื่อเพิ่มสินค้าเข้าตาราง
   function manualAddToCart() {
     const barcodeText = document.getElementById('barcode-input').value.trim();
     if (!barcodeText) {
@@ -494,9 +488,11 @@
     
     addBarcodeToCartImmediate(barcodeText, qty);
     
-    // ล้างค่า input เมื่อกดเพิ่มแล้ว
+    // ล้างค่า input และรีเซ็ตช่อง SKU / สินค้า กลับเป็น "-" ทันที
     document.getElementById('barcode-input').value = '';
     document.getElementById('qty-input').value = '1';
+    updateInfoDisplay('-', '-');
+    activeFetchBarcode = null;
   }
 
   function updateInfoDisplay(sku, product) {
@@ -515,7 +511,6 @@
       cart[existingIndex].quantity += qty;
       renderCart();
     } else {
-      // ตรวจสอบว่าใน Cache มีข้อมูลจากการ Preview แล้วหรือไม่
       const cached = scannedCache[barcode];
       
       const newItem = {
@@ -530,7 +525,6 @@
       cart.push(newItem);
       renderCart();
       
-      // ถ้าไม่มีใน Cache ให้ดึงเบื้องหลัง
       if (!cached) {
         fetchItemDataAsync(barcode);
       }
