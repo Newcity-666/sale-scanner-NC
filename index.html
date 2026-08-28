@@ -59,6 +59,9 @@
     .btn-finish { flex: 1; background: #38a169; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .btn-finish:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
     
+    .btn-history { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    .btn-history:active { background: #2d3748; }
+
     .cart-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
     .cart-table th { background: #edf2f7; text-align: center; padding: 6px; border: 1px solid #cbd5e0; font-size: 13px; }
     .cart-table td { padding: 6px 4px; border: 1px solid #e2e8f0; color: #1a202c; vertical-align: middle; }
@@ -69,18 +72,25 @@
     .text-loading { color: #d69e2e; font-style: italic; }
     .text-error { color: #e53e3e; font-weight: bold; }
 
-    /* Modal สรุปรายการก่อนยืนยัน */
+    /* Modal สรุปรายการก่อนยืนยัน & ประวัติ */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 12px; }
-    .modal-box { background: white; width: 100%; max-width: 400px; border-radius: 12px; padding: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    .modal-box { background: white; width: 100%; max-width: 440px; border-radius: 12px; padding: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-height: 90vh; display: flex; flex-direction: column; }
     .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 12px; color: #1a365d; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; }
     .summary-info { margin-bottom: 10px; font-size: 14px; color: #4a5568; }
-    .summary-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 6px; }
+    .summary-list { max-height: 250px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 6px; }
     .summary-item { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #edf2f7; font-size: 14px; }
     .summary-item:last-child { border-bottom: none; }
     .summary-total { font-weight: bold; text-align: right; margin-bottom: 16px; font-size: 16px; color: #2b6cb0; }
     .modal-actions { display: flex; gap: 8px; }
     .btn-confirm { flex: 1; background: #38a169; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
     .btn-cancel { flex: 1; background: #e53e3e; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-close-modal { width: 100%; background: #718096; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+    /* ประวัติการขาย Card */
+    .bill-card { background: #f8fafc; border: 1px solid #cbd5e0; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+    .bill-header { display: flex; justify-content: space-between; font-weight: bold; color: #2b6cb0; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 6px; font-size: 14px; }
+    .bill-time { font-size: 12px; color: #718096; }
+    .bill-item-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 2px; }
   </style>
 </head>
 <body>
@@ -143,6 +153,8 @@
     <button class="btn-finish" id="btnSubmit" onclick="openSummaryModal()">จบบิล</button>
   </div>
 
+  <button class="btn-history" onclick="openHistoryModal()">📜 ดูประวัติการขายวันนี้</button>
+
   <div style="margin-top: 14px; font-weight: bold; font-size: 15px;">
     รายการในบิล (<span id="cart-count">0</span>/10)
   </div>
@@ -161,6 +173,7 @@
   </table>
 </div>
 
+<!-- Modal สรุปรายการก่อนยืนยัน -->
 <div id="summaryModal" class="modal-overlay">
   <div class="modal-box">
     <div class="modal-title">📋 สรุปรายการก่อนจบบิล</div>
@@ -171,6 +184,20 @@
       <button class="btn-cancel" onclick="closeSummaryModal()">แก้ไขรายการ</button>
       <button class="btn-confirm" id="btnConfirmSubmit" onclick="submitBill()">ยืนยันจบบิล</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal ประวัติการขายวันนี้ -->
+<div id="historyModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">📜 ประวัติการขายวันนี้</div>
+    <div class="summary-info"><b>สาขา:</b> <span id="history-branch">-</span></div>
+    
+    <div class="summary-list" id="history-items-container" style="max-height: 350px;">
+      <!-- ประวัติจะถูกโหลดมาใส่ที่นี่ -->
+    </div>
+    
+    <button class="btn-close-modal" onclick="closeHistoryModal()">ปิดหน้าต่าง</button>
   </div>
 </div>
 
@@ -736,7 +763,7 @@
     }
   }
 
-  /* 📌 ฟังก์ชันจัดการ Modal สรุปรายการ */
+  /* 📌 Modal สรุปรายการ */
   function openSummaryModal() {
     const branch = document.getElementById('branch-input').value.trim();
     if (!branch) { alert("กรุณากรอกชื่อสาขา"); return; }
@@ -777,6 +804,67 @@
 
   function closeSummaryModal() {
     document.getElementById('summaryModal').style.display = 'none';
+  }
+
+  /* 📌 Modal ประวัติการขายวันนี้ */
+  function openHistoryModal() {
+    const branch = document.getElementById('branch-input').value.trim();
+    if (!branch) { 
+      alert("กรุณากรอกชื่อสาขาเพื่อดูประวัติ"); 
+      return; 
+    }
+
+    document.getElementById('history-branch').innerText = branch;
+    const container = document.getElementById('history-items-container');
+    container.innerHTML = '<div style="text-align:center; padding: 20px;" class="text-loading">⏳ กำลังโหลดประวัติ...</div>';
+    
+    document.getElementById('historyModal').style.display = 'flex';
+
+    fetch(`${API_URL}?action=getTodayHistory&branch=${encodeURIComponent(branch)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.bills && data.bills.length > 0) {
+          container.innerHTML = '';
+          data.bills.forEach(bill => {
+            const billBox = document.createElement('div');
+            billBox.className = 'bill-card';
+
+            let itemsHtml = '';
+            let totalBillQty = 0;
+
+            bill.items.forEach(item => {
+              totalBillQty += item.quantity;
+              itemsHtml += `
+                <div class="bill-item-row">
+                  <span>• ${item.product} <small style="color:#718096;">(${item.barcode})</small></span>
+                  <b>x${item.quantity}</b>
+                </div>
+              `;
+            });
+
+            billBox.innerHTML = `
+              <div class="bill-header">
+                <span>🧾 ${bill.billId}</span>
+                <span class="bill-time">⏰ ${bill.time}</span>
+              </div>
+              <div>${itemsHtml}</div>
+              <div style="text-align:right; font-weight:bold; font-size:12px; margin-top:4px; color:#2b6cb0;">
+                รวม: ${totalBillQty} ชิ้น
+              </div>
+            `;
+            container.appendChild(billBox);
+          });
+        } else {
+          container.innerHTML = '<div style="text-align:center; padding: 20px; color:#718096;">ไม่พบประวัติการขายของสาขานี้ในวันนี้</div>';
+        }
+      })
+      .catch(err => {
+        container.innerHTML = '<div style="text-align:center; padding: 20px;" class="text-error">⚠️ เกิดข้อผิดพลาดในการดึงประวัติ</div>';
+      });
+  }
+
+  function closeHistoryModal() {
+    document.getElementById('historyModal').style.display = 'none';
   }
 
   function submitBill() {
