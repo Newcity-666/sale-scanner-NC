@@ -848,46 +848,57 @@
     });
   }
 
-  /* 📌 Modal ประวัติการทำรายการ */
+  /* 📌 Modal ประวัติการทำรายการ (ปรับปรุงตรวจสอบสาขาและดึงข้อมูล) */
   function openHistoryModal() {
+    const branchInput = document.getElementById('branch-input').value.trim();
+    if (!branchInput) {
+      alert("⚠️ กรุณาเลือกหรือกรอกสาขาก่อนดูประวัติรายการ");
+      document.getElementById('branch-input').focus();
+      return;
+    }
+
     const modal = document.getElementById('historyModal');
     const historyList = document.getElementById('history-list');
     const historySummary = document.getElementById('history-summary');
     
     modal.style.display = 'flex';
-    historyList.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">⏳ กำลังโหลดประวัติ...</div>';
+    historyList.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">⏳ กำลังโหลดประวัติของสาขา ' + branchInput + '...</div>';
     historySummary.innerText = '';
 
-    fetch(`${API_URL}?action=getHistory`)
+    fetch(`${API_URL}?action=getHistory&branch=${encodeURIComponent(branchInput)}`)
       .then(res => res.json())
       .then(data => {
         if (data && data.history && data.history.length > 0) {
           historyList.innerHTML = '';
-          historySummary.innerText = `รวมวันนี้ ${data.history.length} บิล | สินค้ารวม ${data.totalQty || 0} ชิ้น`;
+          historySummary.innerText = `สาขา: ${branchInput} | วันนี้ ${data.history.length} บิล | รวม ${data.totalQty || 0} ชิ้น`;
           
           data.history.forEach(bill => {
             const billCard = document.createElement('div');
             billCard.className = 'bill-card';
             
             let itemsRows = '';
-            if (bill.items && Array.isArray(bill.items)) {
-              bill.items.forEach(item => {
+            const itemList = Array.isArray(bill.items) ? bill.items : [];
+            
+            if (itemList.length > 0) {
+              itemList.forEach(item => {
                 itemsRows += `
                   <tr>
-                    <td>${item.product || '-'}</td>
-                    <td style="text-align:center; width: 60px;">x${item.quantity}</td>
+                    <td>${item.product || item.productName || item.name || '-'}</td>
+                    <td style="text-align:center; width: 60px;">x${item.quantity || item.qty || 1}</td>
                   </tr>
                 `;
               });
+            } else {
+              itemsRows = `<tr><td colspan="2" style="text-align:center; color:#a0aec0;">ไม่มีรายละเอียดสินค้า</td></tr>`;
             }
 
             billCard.innerHTML = `
               <div class="bill-header">
                 <div>
-                  <span class="bill-id">🧾 ${bill.billId || '-'}</span>
-                  <div style="font-size:11px; color:#4a5568;">สาขา: ${bill.branch || '-'}</div>
+                  <span class="bill-id">🧾 ${bill.billId || bill.billNo || '-'}</span>
+                  <div style="font-size:11px; color:#4a5568;">สาขา: ${bill.branch || branchInput}</div>
                 </div>
-                <div class="bill-time">${bill.time || ''}</div>
+                <div class="bill-time">${bill.time || bill.timestamp || ''}</div>
               </div>
               <table class="bill-table">
                 <thead>
@@ -904,12 +915,12 @@
             historyList.appendChild(billCard);
           });
         } else {
-          historyList.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">ยังไม่มีประวัติการทำรายการวันนี้</div>';
+          historyList.innerHTML = `<div style="text-align: center; color: #718096; padding: 20px;">ไม่พบประวัติการทำรายการของสาขา "${branchInput}" ในวันนี้</div>`;
         }
       })
       .catch(err => {
         console.error("Error fetching history:", err);
-        historyList.innerHTML = '<div style="text-align: center; color: #e53e3e; padding: 20px;">⚠️ ไม่สามารถโหลดประวัติได้</div>';
+        historyList.innerHTML = '<div style="text-align: center; color: #e53e3e; padding: 20px;">⚠️ ไม่สามารถโหลดประวัติได้ กรุณาตรวจสอบการเชื่อมต่อ</div>';
       });
   }
 
@@ -917,6 +928,5 @@
     document.getElementById('historyModal').style.display = 'none';
   }
 </script>
-
 </body>
 </html>
