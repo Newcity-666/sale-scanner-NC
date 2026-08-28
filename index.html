@@ -308,17 +308,21 @@
 
     canvas.width = width;
     canvas.height = height;
+
+    // เพิ่ม Filter ตกแต่งภาพให้บาร์โค้ดคมชัด อ่านค่าง่ายขึ้น
+    ctx.filter = 'contrast(160%) brightness(95%) grayscale(100%)';
     ctx.drawImage(img, 0, 0, width, height);
 
     previewBox.style.display = 'block';
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
 
     Quagga.decodeSingle({
       src: dataUrl,
       numOfWorkers: 0,
       decoder: { readers: ["ean_reader"] },
-      locate: true
+      locate: true,
+      locator: { patchSize: "large", halfSample: false }
     }, function(result) {
       if (result && result.codeResult && result.codeResult.code) {
         const barcodeText = result.codeResult.code.trim();
@@ -329,7 +333,7 @@
 
         onScanSuccess(barcodeText);
       } else {
-        alert("⚠️ ไม่พบ Barcode โปรดลองถ่ายใหม่อีกครั้ง");
+        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดถ่ายใหม่อีกครั้ง (เน้นระยะให้ชัดเจนและหลบแสงสะท้อน)");
         hidePhotoPreview();
       }
     });
@@ -437,7 +441,6 @@
     if (cleanBarcode.length >= 8) {
       previewBarcodeInfo(cleanBarcode);
     } else {
-      // หากช่อง Input เป็นค่าว่าง หรือสั้นเกินไป ให้รีเซ็ตกลับเป็น "-"
       updateInfoDisplay('-', '-');
       activeFetchBarcode = null;
     }
@@ -488,7 +491,6 @@
     
     addBarcodeToCartImmediate(barcodeText, qty);
     
-    // ล้างค่า input และรีเซ็ตช่อง SKU / สินค้า กลับเป็น "-" ทันที
     document.getElementById('barcode-input').value = '';
     document.getElementById('qty-input').value = '1';
     updateInfoDisplay('-', '-');
@@ -657,7 +659,7 @@
 
     const hasError = cart.some(item => item.error);
     if (hasError) {
-      alert("⚠️ มีสินค้าที่ไม่พบข้อมูลหรือเกิดข้อผิดพลาด กรุณาลบออกก่อนจบบิล");
+      alert("⚠️ มีสินค้าที่ไม่พบข้อมูล กรุณาตรวจสอบ Barcode อีกครั้ง");
       return;
     }
 
