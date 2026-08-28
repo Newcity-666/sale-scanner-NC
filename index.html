@@ -68,6 +68,19 @@
 
     .text-loading { color: #d69e2e; font-style: italic; }
     .text-error { color: #e53e3e; font-weight: bold; }
+
+    /* Modal สรุปรายการก่อนยืนยัน */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 12px; }
+    .modal-box { background: white; width: 100%; max-width: 400px; border-radius: 12px; padding: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    .modal-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 12px; color: #1a365d; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; }
+    .summary-info { margin-bottom: 10px; font-size: 14px; color: #4a5568; }
+    .summary-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 6px; }
+    .summary-item { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #edf2f7; font-size: 14px; }
+    .summary-item:last-child { border-bottom: none; }
+    .summary-total { font-weight: bold; text-align: right; margin-bottom: 16px; font-size: 16px; color: #2b6cb0; }
+    .modal-actions { display: flex; gap: 8px; }
+    .btn-confirm { flex: 1; background: #38a169; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .btn-cancel { flex: 1; background: #e53e3e; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -102,7 +115,6 @@
       <canvas id="photo-canvas"></canvas>
     </div>
     
-    <!-- 📌 เพิ่ม onblur เพื่อรองรับการกดค้นหาเมื่อออกจากช่องพิมพ์ -->
     <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" onkeydown="handleInputBarcodeKeyDown(event)" onblur="handleInputBarcodeBlur(this.value)">
   </div>
 
@@ -128,7 +140,7 @@
 
   <div class="action-buttons">
     <button class="btn-add" id="btnAdd" onclick="manualAddToCart()">+ เพิ่มรายการ</button>
-    <button class="btn-finish" id="btnSubmit" onclick="submitBill()">จบบิล</button>
+    <button class="btn-finish" id="btnSubmit" onclick="openSummaryModal()">จบบิล</button>
   </div>
 
   <div style="margin-top: 14px; font-weight: bold; font-size: 15px;">
@@ -147,6 +159,19 @@
     </thead>
     <tbody id="cart-list"></tbody>
   </table>
+</div>
+
+<div id="summaryModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">📋 สรุปรายการก่อนจบบิล</div>
+    <div class="summary-info"><b>สาขา:</b> <span id="summary-branch">-</span></div>
+    <div class="summary-list" id="summary-items-list"></div>
+    <div class="summary-total">จำนวนรวมทั้งหมด: <span id="summary-total-qty">0</span> ชิ้น</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSummaryModal()">แก้ไขรายการ</button>
+      <button class="btn-confirm" id="btnConfirmSubmit" onclick="submitBill()">ยืนยันจบบิล</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -488,10 +513,9 @@
     previewBarcodeInfo(barcodeText);
   }
 
-  // 📌 ฟังก์ชันดักจับเมื่อกด Enter ในช่องกรอก Barcode
   function handleInputBarcodeKeyDown(event) {
     if (event.key === 'Enter' || event.keyCode === 13) {
-      event.preventDefault(); // ป้องกันการ Submit Form หรือ Reload หน้าเว็บ
+      event.preventDefault();
       const barcodeText = event.target.value.trim();
       if (barcodeText) {
         previewBarcodeInfo(barcodeText);
@@ -502,7 +526,6 @@
     }
   }
 
-  // 📌 ฟังก์ชันดักจับเมื่อออกจากช่องพิมพ์ (Blur) บนโทรศัพท์/คอมพิวเตอร์
   function handleInputBarcodeBlur(value) {
     const barcodeText = value.trim();
     if (barcodeText && barcodeText !== activeFetchBarcode) {
@@ -713,25 +736,55 @@
     }
   }
 
-  function submitBill() {
+  /* 📌 ฟังก์ชันจัดการ Modal สรุปรายการ */
+  function openSummaryModal() {
     const branch = document.getElementById('branch-input').value.trim();
     if (!branch) { alert("กรุณากรอกชื่อสาขา"); return; }
     if (cart.length === 0) { alert("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ"); return; }
 
-    const hasLoading = cart.some(item => item.loading);
-    if (hasLoading) {
+    if (cart.some(item => item.loading)) {
       alert("⚠️ กรุณารอให้ระบบดึงข้อมูลสินค้าเสร็จสิ้นก่อนจบบิล");
       return;
     }
-
-    const hasError = cart.some(item => item.error);
-    if (hasError) {
+    if (cart.some(item => item.error)) {
       alert("⚠️ มีสินค้าที่ไม่พบข้อมูลหรือเกิดข้อผิดพลาด กรุณาลบออกก่อนจบบิล");
       return;
     }
 
-    document.getElementById('btnSubmit').disabled = true;
-    document.getElementById('btnSubmit').innerText = "⏳ กำลังบันทึก...";
+    document.getElementById('summary-branch').innerText = branch;
+    
+    const summaryList = document.getElementById('summary-items-list');
+    summaryList.innerHTML = '';
+    let totalQty = 0;
+
+    cart.forEach((item, index) => {
+      totalQty += item.quantity;
+      const div = document.createElement('div');
+      div.className = 'summary-item';
+      div.innerHTML = `
+        <div>
+          <b>${index + 1}. ${item.product}</b><br>
+          <small style="color:#718096;">[${item.barcode}]</small>
+        </div>
+        <div style="font-weight:bold; text-align:right;">x ${item.quantity}</div>
+      `;
+      summaryList.appendChild(div);
+    });
+
+    document.getElementById('summary-total-qty').innerText = totalQty;
+    document.getElementById('summaryModal').style.display = 'flex';
+  }
+
+  function closeSummaryModal() {
+    document.getElementById('summaryModal').style.display = 'none';
+  }
+
+  function submitBill() {
+    const branch = document.getElementById('branch-input').value.trim();
+    const btnConfirm = document.getElementById('btnConfirmSubmit');
+
+    btnConfirm.disabled = true;
+    btnConfirm.innerText = "⏳ กำลังบันทึก...";
 
     const payload = { branch: branch, items: cart };
 
@@ -742,8 +795,9 @@
     })
     .then(res => res.json())
     .then(res => {
-      document.getElementById('btnSubmit').disabled = false;
-      document.getElementById('btnSubmit').innerText = "จบบิล";
+      btnConfirm.disabled = false;
+      btnConfirm.innerText = "ยืนยันจบบิล";
+      closeSummaryModal();
 
       if (res.success) {
         alert(`บันทึกเรียบร้อย!\nเลขที่บิล: ${res.billId}`);
@@ -756,8 +810,8 @@
       }
     })
     .catch(err => {
-      document.getElementById('btnSubmit').disabled = false;
-      document.getElementById('btnSubmit').innerText = "จบบิล";
+      btnConfirm.disabled = false;
+      btnConfirm.innerText = "ยืนยันจบบิล";
       alert("ไม่สามารถบันทึกได้ โปรดตรวจสอบอินเทอร์เน็ตหรือ Web App URL");
     });
   }
