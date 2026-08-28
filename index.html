@@ -20,9 +20,9 @@
     
     input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px !important; outline: none; }
     
-    .scanner-container { position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
+    .scanner-container { position: relative; width: 100%; height: 250px; background: #000; border-radius: 8px; overflow: hidden; display: none; margin-bottom: 10px; }
     .scanner-container video, .scanner-container canvas { width: 100%; height: 100%; object-fit: cover; }
-    canvas.drawingBuffer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
+    canvas.drawingBuffer { position: absolute; top: 0; left: 0; }
 
     .scanner-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
     .scanner-guide { position: absolute; left: 12%; right: 12%; top: 25%; height: 50%; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.28); }
@@ -34,16 +34,18 @@
     .btn-scan { width: 100%; background: #2b6cb0; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
     .btn-scan.active { background: #e53e3e; }
     
-    .btn-capture { width: 100%; background: #dd6b20; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; display: none; }
-    .btn-capture.frozen { background: #38a169; }
+    .btn-file-upload { width: 100%; background: #4a5568; color: white; border: none; padding: 10px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: center; display: inline-block; }
+    .btn-file-upload:active { background: #2d3748; }
+
+    /* พรีวิวภาพถ่ายและการตีกรอบ */
+    .photo-preview-box { position: relative; width: 100%; margin-top: 8px; display: none; text-align: center; border: 2px dashed #cbd5e0; border-radius: 8px; padding: 4px; background: #000; }
+    .photo-preview-box canvas { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto; }
 
     .info-card { background: #f8fafc; border: 2px solid #cbd5e0; border-radius: 8px; padding: 12px; margin: 12px 0; }
     .info-row { display: flex; margin-bottom: 6px; font-size: 16px; }
     .info-row:last-child { margin-bottom: 0; }
     .info-label { width: 75px; font-weight: bold; color: #4a5568; }
     .info-value { flex: 1; color: #000000; font-weight: bold; word-break: break-word; font-size: 17px; }
-    .status-notFound { color: #e53e3e; font-size: 15px; }
-    .status-loading { color: #d69e2e; }
 
     .qty-container { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .qty-control { display: flex; align-items: center; gap: 6px; }
@@ -53,7 +55,6 @@
 
     .action-buttons { display: flex; gap: 8px; }
     .btn-add { flex: 1; background: #319795; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
-    .btn-add:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
     .btn-finish { flex: 1; background: #38a169; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
     .btn-finish:disabled { background: #cbd5e0; color: #718096; cursor: not-allowed; }
     
@@ -83,15 +84,22 @@
     <label>สแกนบาร์โค้ด:</label>
     
     <div id="scanner-box" class="scanner-container">
-      <div id="scanner-overlay" class="scanner-overlay">
+      <div class="scanner-overlay">
         <div class="scanner-guide"></div>
-        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้เต็มกรอบแล้วกดบันทึกภาพ</div>
+        <div id="scanner-hint" class="scanner-hint">วาง Barcode ให้เต็มกรอบประมาณ 50–60%</div>
       </div>
     </div>
 
     <div class="scan-btn-group">
-      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 เปิดกล้องสแกน</button>
-      <button id="btnCapture" class="btn-capture" onclick="toggleFreezeFrame()">📸 กดบันทึกภาพ (Freeze)</button>
+      <button id="btnToggleScan" class="btn-scan" onclick="toggleScanner()">📷 Scan Barcode</button>
+      
+      <label for="image-input" class="btn-file-upload">📸 ถ่ายภาพเพื่อสแกน(กรณี Scan ไม่ติด)</label>
+      <input type="file" id="image-input" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoUpload(this)">
+    </div>
+
+    <!-- พื้นที่แสดงรูปภาพถ่ายพร้อมตีกรอบจุดอ่าน Barcode -->
+    <div id="photo-preview-box" class="photo-preview-box">
+      <canvas id="photo-canvas"></canvas>
     </div>
     
     <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode หรือสแกนเพื่อเพิ่มทันที" onchange="handleManualInput(this.value)">
@@ -118,7 +126,7 @@
   </div>
 
   <div class="action-buttons">
-    <button class="btn-add" id="btnAdd" onclick="manualAddToCart()">+ เพิ่มป้อนมือ</button>
+    <button class="btn-add" id="btnAdd" onclick="manualAddToCart()">+ เพิ่มรายการ</button>
     <button class="btn-finish" id="btnSubmit" onclick="submitBill()">จบบิล</button>
   </div>
 
@@ -152,7 +160,6 @@
 
   let cart = [];
   let isScanning = false;
-  let isFrozen = false;
   let scanHistory = [];
   const scannedCache = {};
 
@@ -185,18 +192,14 @@
   }
 
   function startScanner() {
+    hidePhotoPreview();
     const scannerBox = document.getElementById('scanner-box');
-    const btnToggle = document.getElementById('btnToggleScan');
-    const btnCapture = document.getElementById('btnCapture');
+    const btn = document.getElementById('btnToggleScan');
 
     scannerBox.style.display = "block";
-    btnCapture.style.display = "block";
-    btnToggle.innerText = "🛑 ปิดกล้อง";
-    btnToggle.classList.add("active");
-    
+    btn.innerText = "🛑 ปิดกล้อง";
+    btn.classList.add("active");
     isScanning = true;
-    isFrozen = false;
-    resetCaptureButton();
 
     scanHistory = [];
     lastProcessedTime = Date.now();
@@ -211,7 +214,7 @@
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
-        area: { top: "15%", right: "10%", left: "10%", bottom: "15%" }
+        area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
       },
       locator: { patchSize: "medium", halfSample: false },
       numOfWorkers: navigator.hardwareConcurrency || 2,
@@ -224,15 +227,32 @@
         return;
       }
       
+      // ปรับแต่งกล้องอย่างปลอดภัย (รองรับทั้งรุ่นใหม่และรุ่นเก่า)
       try {
         const track = Quagga.CameraAccess.getActiveTrack();
         if (track && typeof track.getCapabilities === 'function') {
           const caps = track.getCapabilities();
+          const constraintsToApply = {};
+
+          // ตรวจสอบ Focus Mode
+          if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+            constraintsToApply.focusMode = 'continuous';
+          }
+
+          // ตรวจสอบ Zoom
           if (caps.zoom) {
-            track.applyConstraints({ advanced: [{ zoom: Math.min(1.3, caps.zoom.max) }] });
+            constraintsToApply.zoom = Math.min(1.3, caps.zoom.max);
+          }
+
+          if (Object.keys(constraintsToApply).length > 0) {
+            track.applyConstraints({ advanced: [constraintsToApply] }).catch(e => {
+              console.warn("ไม่สามารถปรับแต่งกล้องเพิ่มเติมได้:", e);
+            });
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("เบราว์เซอร์ไม่รองรับ Advanced Track Settings");
+      }
 
       Quagga.start();
       startWatchdog();
@@ -251,76 +271,106 @@
         Quagga.stop();
       } catch(e) {}
       isScanning = false;
-      isFrozen = false;
     }
 
     document.getElementById('scanner-box').style.display = "none";
-    document.getElementById('btnCapture').style.display = "none";
-    const btnToggle = document.getElementById('btnToggleScan');
-    btnToggle.innerText = "📷 เปิดกล้องสแกน";
-    btnToggle.classList.remove("active");
+    const btn = document.getElementById('btnToggleScan');
+    btn.innerText = "📷 Scan Barcode";
+    btn.classList.remove("active");
   }
 
-  // --- ฟังก์ชันแช่ภาพ (Freeze Frame / Pause Video) ---
-  function toggleFreezeFrame() {
-    const video = document.querySelector('#scanner-box video');
-    const btnCapture = document.getElementById('btnCapture');
-    const overlay = document.getElementById('scanner-overlay');
+  function handlePhotoUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    if (isScanning) stopScanner();
 
-    if (!video) return;
+    const file = input.files[0];
+    const reader = new FileReader();
 
-    if (!isFrozen) {
-      // สั่งหยุดภาพ (Pause)
-      video.pause();
-      isFrozen = true;
-      overlay.style.display = "none"; // ซ่อนเส้นเล็งเมื่อแช่ภาพ
-      btnCapture.innerText = "🔄 ถ่ายใหม่ / ปลดล็อกภาพ";
-      btnCapture.classList.add("frozen");
-    } else {
-      // สั่งเล่นภาพต่อ (Play)
-      video.play();
-      isFrozen = false;
-      overlay.style.display = "block";
-      resetCaptureButton();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        processAndDecodeImage(img);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  function processAndDecodeImage(img) {
+    const canvas = document.getElementById('photo-canvas');
+    const ctx = canvas.getContext('2d');
+    const previewBox = document.getElementById('photo-preview-box');
+
+    const MAX_WIDTH = 1000;
+    let width = img.width;
+    let height = img.height;
+
+    if (width > MAX_WIDTH) {
+      height = Math.round((height * MAX_WIDTH) / width);
+      width = MAX_WIDTH;
     }
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    previewBox.style.display = 'block';
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+    Quagga.decodeSingle({
+      src: dataUrl,
+      numOfWorkers: 0,
+      decoder: { readers: ["ean_reader"] },
+      locate: true
+    }, function(result) {
+      if (result && result.codeResult && result.codeResult.code) {
+        const barcodeText = result.codeResult.code.trim();
+
+        if (result.boxes || result.box) {
+          drawBarcodeBoxes(ctx, result.boxes || [result.box]);
+        }
+
+        onScanSuccess(barcodeText);
+      } else {
+        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดลองถ่ายใหม่อีกครั้ง");
+        hidePhotoPreview();
+      }
+    });
   }
 
-  function resetCaptureButton() {
-    const btnCapture = document.getElementById('btnCapture');
-    const overlay = document.getElementById('scanner-overlay');
-    btnCapture.innerText = "📸 กดบันทึกภาพ (Freeze)";
-    btnCapture.classList.remove("frozen");
-    overlay.style.display = "block";
+  function drawBarcodeBoxes(ctx, boxes) {
+    ctx.strokeStyle = '#00FF00';
+    ctx.lineWidth = 6;
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+
+    boxes.forEach(box => {
+      if (box) {
+        ctx.beginPath();
+        ctx.moveTo(box[0][0], box[0][1]);
+        ctx.lineTo(box[1][0], box[1][1]);
+        ctx.lineTo(box[2][0], box[2][1]);
+        ctx.lineTo(box[3][0], box[3][1]);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fill();
+      }
+    });
   }
 
-  // วาดเส้นตีกรอบบาร์โค้ดแบบ Real-time บน Canvas ของ Quagga
+  function hidePhotoPreview() {
+    document.getElementById('photo-preview-box').style.display = 'none';
+  }
+
   function onFrameProcessed(result) {
     lastProcessedTime = Date.now();
-    const drawingCtx = Quagga.canvas.ctx.overlay;
-    const drawingCanvas = Quagga.canvas.dom.overlay;
-
-    if (result) {
-      if (result.boxes) {
-        drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
-        result.boxes.filter(box => box !== result.box).forEach(box => {
-          Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
-        });
-      }
-
-      if (result.box) {
-        Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "#00F", lineWidth: 3 });
-      }
-
-      if (result.codeResult && result.codeResult.code) {
-        Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 4 });
-      }
-    }
   }
 
   function startWatchdog() {
     stopWatchdog();
     watchdogTimer = setInterval(() => {
-      if (isScanning && !isFrozen && !isRecovering) {
+      if (isScanning && !isRecovering) {
         const timeDiff = Date.now() - lastProcessedTime;
         if (timeDiff > 3000) {
           restartScannerAuto();
@@ -371,8 +421,7 @@
         const counts = {};
         scanHistory.forEach(code => { counts[code] = (counts[code] || 0) + 1; });
 
-        // ถ้านับได้บาร์โค้ดเดียวกัน 3 ครั้ง หรืออยู่ในโหมด Freeze ภาพ ให้รับค่าทันที
-        if (counts[barcodeText] >= 2 || isFrozen) {
+        if (counts[barcodeText] >= 3) {
           Quagga.offDetected(onScanDetected);
           onScanSuccess(barcodeText);
         }
@@ -381,6 +430,8 @@
   }
 
   function onScanSuccess(barcodeText) {
+    stopScanner();
+    document.getElementById('barcode-input').value = barcodeText;
     if (navigator.vibrate) navigator.vibrate(200);
 
     const qty = parseInt(document.getElementById('qty-input').value) || 1;
@@ -388,19 +439,6 @@
 
     document.getElementById('barcode-input').value = '';
     document.getElementById('qty-input').value = '1';
-
-    // ถ้ากดบันทึกภาพไว้ สั่งปลดล็อกกลับมาเป็นกล้องสดให้อัตโนมัติพร้อมสแกนตัวต่อไป
-    if (isFrozen) {
-      toggleFreezeFrame();
-    }
-    
-    // รีเซ็ตการตรวจจับสแกนต่อ
-    setTimeout(() => {
-      if (isScanning) {
-        scanHistory = [];
-        Quagga.onDetected(onScanDetected);
-      }
-    }, 800);
   }
 
   function handleManualInput(barcodeText) {
@@ -423,15 +461,23 @@
     document.getElementById('qty-input').value = '1';
   }
 
+  function updateInfoDisplay(sku, product) {
+    document.getElementById('display-sku').innerText = sku || '-';
+    document.getElementById('display-product').innerText = product || '-';
+  }
+
   function addBarcodeToCartImmediate(barcode, qty) {
     if (cart.length >= 10) { 
       alert("เพิ่มได้สูงสุด 10 รายการต่อบิล"); 
       return; 
     }
 
+    updateInfoDisplay('⏳...', '⏳ กำลังดึงข้อมูล...');
+
     const existingIndex = cart.findIndex(item => item.barcode === barcode);
     if (existingIndex > -1) {
       cart[existingIndex].quantity += qty;
+      updateInfoDisplay(cart[existingIndex].sku, cart[existingIndex].product);
       renderCart();
     } else {
       const newItem = {
@@ -482,6 +528,7 @@
         item.product = '⚠️ ไม่พบข้อมูลในระบบ';
         item.error = true;
       }
+      updateInfoDisplay(item.sku, item.product);
       renderCart();
     }
   }
@@ -539,6 +586,12 @@
 
   function removeFromCart(index) {
     cart.splice(index, 1);
+    if (cart.length === 0) {
+      updateInfoDisplay('-', '-');
+    } else {
+      const lastItem = cart[cart.length - 1];
+      updateInfoDisplay(lastItem.sku, lastItem.product);
+    }
     renderCart();
   }
 
@@ -568,7 +621,7 @@
 
     const hasLoading = cart.some(item => item.loading);
     if (hasLoading) {
-      alert("⚠️ กรุณารอให้ระบบดึงข้อมูลสินค้าทั้งหมดให้เสร็จสิ้นก่อนจบบิล");
+      alert("⚠️ กรุณารอให้ระบบดึงข้อมูลสินค้าเสร็จสิ้นก่อนจบบิล");
       return;
     }
 
@@ -590,7 +643,9 @@
       if (res.success) {
         alert(`บันทึกเรียบร้อย!\nเลขที่บิล: ${res.billId}`);
         cart = [];
+        updateInfoDisplay('-', '-');
         renderCart();
+        hidePhotoPreview();
       } else {
         alert("เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: " + res.error);
       }
