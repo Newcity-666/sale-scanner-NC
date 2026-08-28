@@ -100,7 +100,7 @@
       <canvas id="photo-canvas"></canvas>
     </div>
     
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode หรือสแกนเพื่ออ่านค่า">
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode หรือสแกนเพื่ออ่านค่า" oninput="handleInputBarcodeChange(this.value)">
   </div>
 
   <div class="info-card">
@@ -160,6 +160,7 @@
   let isScanning = false;
   let scanHistory = [];
   const scannedCache = {};
+  let activeFetchBarcode = null; // บาร์โค้ดที่กำลังดึงข้อมูลอยู่ฝั่ง Header Preview
 
   let watchdogTimer = null;
   let lastProcessedTime = 0;
@@ -423,11 +424,63 @@
     }
   }
 
-  // อ่าน Barcode เจอ -> ใส่ค่าลงในช่อง input ค้างไว้ และ ปิดกล้องทันที
+  // อ่าน Barcode เจอ -> ใส่ค่า และดึงข้อมูลสินค้าทันทีเพื่อโชว์ใน SKU/สินค้า
   function onScanSuccess(barcodeText) {
     stopScanner();
     document.getElementById('barcode-input').value = barcodeText;
     if (navigator.vibrate) navigator.vibrate(200);
+    
+    // ดึงข้อมูลล่วงหน้าทันทีเพื่อโชว์สถานะโหลด
+    previewBarcodeInfo(barcodeText);
+  }
+
+  // ดักจับเหตุการณ์ พิมพ์/วางบาร์โค้ด ในช่อง Input
+  function handleInputBarcodeChange(barcodeText) {
+    const cleanBarcode = barcodeText.trim();
+    if (cleanBarcode.length >= 8) {
+      previewBarcodeInfo(cleanBarcode);
+    } else if (cleanBarcode.length === 0) {
+      updateInfoDisplay('-', '-');
+      activeFetchBarcode = null;
+    }
+  }
+
+  // ฟังก์ชันดึงข้อมูลมาแสดงที่ Info Card (SKU / สินค้า)
+  function previewBarcodeInfo(barcode) {
+    if (scannedCache[barcode]) {
+      const res = scannedCache[barcode];
+      if (res.found) {
+        updateInfoDisplay(res.sku || '-', res.product || 'ไม่ระบุชื่อ');
+      } else {
+        updateInfoDisplay('ไม่พบ', '⚠️ ไม่พบข้อมูลในระบบ');
+      }
+      return;
+    }
+
+    // แสดงสถานะโหลดทันที
+    updateInfoDisplay('⏳...', '⏳ กำลังดึงข้อมูล...');
+    activeFetchBarcode = barcode;
+
+    fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(barcode)}`)
+      .then(res => res.json())
+      .then(res => {
+        scannedCache[barcode] = res;
+        // ตรวจสอบว่าตรงกับบาร์โค้ดล่าสุดในช่อง input หรือไม่
+        const currentInput = document.getElementById('barcode-input').value.trim();
+        if (currentInput === barcode) {
+          if (res && res.found) {
+            updateInfoDisplay(res.sku || '-', res.product || 'ไม่ระบุชื่อ');
+          } else {
+            updateInfoDisplay('ไม่พบ', '⚠️ ไม่พบข้อมูลในระบบ');
+          }
+        }
+      })
+      .catch(err => {
+        const currentInput = document.getElementById('barcode-input').value.trim();
+        if (currentInput === barcode) {
+          updateInfoDisplay('Error', '⚠️ เกิดข้อผิดพลาดในการโหลด');
+        }
+      });
   }
 
   // กดปุ่ม "+ เพิ่มรายการ" เพื่อเพิ่มสินค้าเข้าตาราง
@@ -439,10 +492,9 @@
     }
     const qty = parseInt(document.getElementById('qty-input').value) || 1;
     
-    // เพิ่มเข้าตารางทันทีโดยไม่ต้องรอโหลด
     addBarcodeToCartImmediate(barcodeText, qty);
     
-    // ล้างค่าเมื่อกดเพิ่มรายการแล้ว
+    // ล้างค่า input เมื่อกดเพิ่มแล้ว
     document.getElementById('barcode-input').value = '';
     document.getElementById('qty-input').value = '1';
   }
@@ -461,31 +513,31 @@
     const existingIndex = cart.findIndex(item => item.barcode === barcode);
     if (existingIndex > -1) {
       cart[existingIndex].quantity += qty;
-      updateInfoDisplay(cart[existingIndex].sku, cart[existingIndex].product);
       renderCart();
     } else {
+      // ตรวจสอบว่าใน Cache มีข้อมูลจากการ Preview แล้วหรือไม่
+      const cached = scannedCache[barcode];
+      
       const newItem = {
         barcode: barcode,
-        sku: '⏳...',
-        product: '⏳ กำลังดึงข้อมูล...',
+        sku: cached ? (cached.found ? (cached.sku || '-') : 'ไม่พบ') : '⏳...',
+        product: cached ? (cached.found ? (cached.product || 'ไม่ระบุชื่อ') : '⚠️ ไม่พบข้อมูลในระบบ') : '⏳ กำลังดึงข้อมูล...',
         quantity: qty,
-        loading: true,
-        error: false
+        loading: !cached,
+        error: cached ? !cached.found : false
       };
+      
       cart.push(newItem);
       renderCart();
       
-      // ดึงข้อมูลสินค้าเบื้องหลัง
-      fetchItemDataAsync(barcode);
+      // ถ้าไม่มีใน Cache ให้ดึงเบื้องหลัง
+      if (!cached) {
+        fetchItemDataAsync(barcode);
+      }
     }
   }
 
   function fetchItemDataAsync(barcode) {
-    if (scannedCache[barcode]) {
-      updateCartItemData(barcode, scannedCache[barcode]);
-      return;
-    }
-
     fetch(`${API_URL}?action=getProduct&barcode=${encodeURIComponent(barcode)}`)
       .then(res => res.json())
       .then(res => {
@@ -514,7 +566,6 @@
         item.product = '⚠️ ไม่พบข้อมูลในระบบ';
         item.error = true;
       }
-      updateInfoDisplay(item.sku, item.product);
       renderCart();
     }
   }
@@ -577,12 +628,6 @@
 
   function removeFromCart(index) {
     cart.splice(index, 1);
-    if (cart.length === 0) {
-      updateInfoDisplay('-', '-');
-    } else {
-      const lastItem = cart[cart.length - 1];
-      updateInfoDisplay(lastItem.sku, lastItem.product);
-    }
     renderCart();
   }
 
