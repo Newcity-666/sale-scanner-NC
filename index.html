@@ -103,7 +103,8 @@
       <canvas id="photo-canvas"></canvas>
     </div>
     
-    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode" oninput="handleInputBarcodeChange(this.value)">
+    <!-- 📌 ปรับเปลี่ยนเป็นกด Enter เพื่อค้นหาข้อมูล -->
+    <input type="text" id="barcode-input" style="margin-top: 8px;" placeholder="กรอก Barcode แล้วกด Enter" onkeydown="handleInputBarcodeKeyDown(event)">
   </div>
 
   <div class="info-card">
@@ -300,7 +301,6 @@
     const ctx = canvas.getContext('2d');
     const previewBox = document.getElementById('photo-preview-box');
 
-    // รีเซ็ตขอบกล่อง Preview ให้เป็นสีเขียวเริ่มต้น
     previewBox.classList.remove('error');
 
     const MAX_WIDTH = 1200;
@@ -318,7 +318,6 @@
     ctx.filter = 'none';
     ctx.drawImage(img, 0, 0, width, height);
 
-    // 📌 ฟังก์ชันช่วยวาดกรอบสีเขียวหนาครอบตำแหน่ง Barcode (กรณีหาเจอ)
     function drawGreenBoundingBox(box) {
       ctx.strokeStyle = '#00FF00';
       ctx.lineWidth = Math.max(6, Math.round(width / 100));
@@ -336,7 +335,6 @@
       }
     }
 
-    // 📌 ฟังก์ชันช่วยวาดกรอบสีแดงครอบรอบภาพ Canvas (กรณีหาไม่เจอ)
     function drawRedFrame() {
       const strokeWidth = Math.max(8, Math.round(width / 50));
       ctx.strokeStyle = '#FF0000';
@@ -344,10 +342,9 @@
       ctx.strokeRect(strokeWidth / 2, strokeWidth / 2, width - strokeWidth, height - strokeWidth);
     }
 
-    // 📌 ฟังก์ชันจัดการกรณีสแกนไม่สำเร็จ (แสดงกรอบแดง + แจ้งเตือน + ลบรูปเดิม)
     function handleNotFound() {
       drawRedFrame();
-      previewBox.classList.add('error'); // เปลี่ยนขอบกล่อง preview ให้เป็นสีแดงด้วย
+      previewBox.classList.add('error');
       previewBox.style.display = 'block';
 
       setTimeout(() => {
@@ -356,7 +353,6 @@
       }, 100);
     }
 
-    // Tier 1: Native BarcodeDetector (Android/Chrome Engine)
     if ('BarcodeDetector' in window) {
       try {
         const detector = new BarcodeDetector({
@@ -376,7 +372,6 @@
       }
     }
 
-    // Tier 2: ZXing Library
     if (window.ZXing) {
       try {
         const codeReader = new ZXing.BrowserMultiFormatReader();
@@ -394,7 +389,6 @@
       }
     }
 
-    // Tier 3: QuaggaJS Fallback
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
     Quagga.decodeSingle({
@@ -495,13 +489,17 @@
     previewBarcodeInfo(barcodeText);
   }
 
-  function handleInputBarcodeChange(barcodeText) {
-    const cleanBarcode = barcodeText.trim();
-    if (cleanBarcode.length >= 8) {
-      previewBarcodeInfo(cleanBarcode);
-    } else {
-      updateInfoDisplay('-', '-');
-      activeFetchBarcode = null;
+  // 📌 ฟังก์ชันดักจับกด Enter ในช่องกรอก Barcode
+  function handleInputBarcodeKeyDown(event) {
+    if (event.key === 'Enter' || event.keyCode === 13) {
+      event.preventDefault(); // ป้องกันการ Submit Form หรือ Reload หน้าเว็บ
+      const barcodeText = event.target.value.trim();
+      if (barcodeText) {
+        previewBarcodeInfo(barcodeText);
+      } else {
+        updateInfoDisplay('-', '-');
+        activeFetchBarcode = null;
+      }
     }
   }
 
