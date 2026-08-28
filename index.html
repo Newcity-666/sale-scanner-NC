@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SALES SCAN SYSTEM</title>
   
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
@@ -853,70 +853,62 @@
     const modal = document.getElementById('historyModal');
     const historyList = document.getElementById('history-list');
     const historySummary = document.getElementById('history-summary');
-
+    
     modal.style.display = 'flex';
     historyList.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">⏳ กำลังโหลดประวัติ...</div>';
     historySummary.innerText = '';
 
-    fetch(`${API_URL}?action=getTodayHistory`)
+    fetch(`${API_URL}?action=getHistory`)
       .then(res => res.json())
       .then(data => {
-        if (data.bills && data.bills.length > 0) {
+        if (data && data.history && data.history.length > 0) {
           historyList.innerHTML = '';
-          let totalItemsQty = 0;
-
-          data.bills.forEach(bill => {
-            const card = document.createElement('div');
-            card.className = 'bill-card';
-
+          historySummary.innerText = `รวมวันนี้ ${data.history.length} บิล | สินค้ารวม ${data.totalQty || 0} ชิ้น`;
+          
+          data.history.forEach(bill => {
+            const billCard = document.createElement('div');
+            billCard.className = 'bill-card';
+            
             let itemsRows = '';
-            let billQtySum = 0;
+            if (bill.items && Array.isArray(bill.items)) {
+              bill.items.forEach(item => {
+                itemsRows += `
+                  <tr>
+                    <td>${item.product || '-'}</td>
+                    <td style="text-align:center; width: 60px;">x${item.quantity}</td>
+                  </tr>
+                `;
+              });
+            }
 
-            bill.items.forEach(item => {
-              billQtySum += parseInt(item.quantity) || 0;
-              itemsRows += `
-                <tr>
-                  <td style="font-size:11px; color:#718096;">${item.barcode}</td>
-                  <td><b>${item.product}</b></td>
-                  <td style="text-align:center; font-weight:bold;">${item.quantity}</td>
-                </tr>
-              `;
-            });
-
-            totalItemsQty += billQtySum;
-
-            card.innerHTML = `
+            billCard.innerHTML = `
               <div class="bill-header">
                 <div>
-                  <span class="bill-id">🧾 ${bill.billId}</span>
-                  <span style="font-size:12px; color:#4a5568;">(${bill.branch})</span>
+                  <span class="bill-id">🧾 ${bill.billId || '-'}</span>
+                  <div style="font-size:11px; color:#4a5568;">สาขา: ${bill.branch || '-'}</div>
                 </div>
                 <div class="bill-time">${bill.time || ''}</div>
               </div>
               <table class="bill-table">
                 <thead>
                   <tr>
-                    <th style="width: 30%;">Barcode</th>
                     <th>สินค้า</th>
-                    <th style="width: 15%; text-align:center;">จำนวน</th>
+                    <th style="text-align:center;">จำนวน</th>
                   </tr>
                 </thead>
-                <tbody>${itemsRows}</tbody>
+                <tbody>
+                  ${itemsRows}
+                </tbody>
               </table>
-              <div style="text-align:right; font-weight:bold; margin-top:6px; color:#2b6cb0; font-size:12px;">
-                รวมในบิลนี้: ${billQtySum} ชิ้น
-              </div>
             `;
-            historyList.appendChild(card);
+            historyList.appendChild(billCard);
           });
-
-          historySummary.innerHTML = `รวมวันนี้: <b>${data.bills.length}</b> บิล | ขายได้ทั้งหมด: <b>${totalItemsQty}</b> ชิ้น`;
         } else {
-          historyList.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">📭 ยังไม่มีประวัติการขายในวันนี้</div>';
-          historySummary.innerText = '';
+          historyList.innerHTML = '<div style="text-align: center; color: #718096; padding: 20px;">ยังไม่มีประวัติการทำรายการวันนี้</div>';
         }
       })
       .catch(err => {
+        console.error("Error fetching history:", err);
         historyList.innerHTML = '<div style="text-align: center; color: #e53e3e; padding: 20px;">⚠️ ไม่สามารถโหลดประวัติได้</div>';
       });
   }
