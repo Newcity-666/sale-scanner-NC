@@ -298,7 +298,6 @@
     const ctx = canvas.getContext('2d');
     const previewBox = document.getElementById('photo-preview-box');
 
-    // ขยายเป็น 1600px เพื่อเก็บรายละเอียดเส้นบาร์โค้ดขนาดเล็ก หรือระยะใกล้จัด (Macro)
     const MAX_WIDTH = 1600;
     let width = img.width;
     let height = img.height;
@@ -357,34 +356,10 @@
     }, function(result) {
       if (result && result.codeResult && result.codeResult.code) {
         const barcodeText = result.codeResult.code.trim();
-
-        if (result.boxes || result.box) {
-          drawBarcodeBoxes(ctx, result.boxes || [result.box]);
-        }
-
         onScanSuccess(barcodeText);
       } else {
-        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดลองถ่ายใหม่อีกครั้ง โดยให้บาร์โค้ดสว่างและชัดเจน");
+        alert("⚠️ ไม่พบ Barcode โปรดลองถ่ายใหม่อีกครั้ง");
         hidePhotoPreview();
-      }
-    });
-  }
-
-  function drawBarcodeBoxes(ctx, boxes) {
-    ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 6;
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
-
-    boxes.forEach(box => {
-      if (box) {
-        ctx.beginPath();
-        ctx.moveTo(box[0][0], box[0][1]);
-        ctx.lineTo(box[1][0], box[1][1]);
-        ctx.lineTo(box[2][0], box[2][1]);
-        ctx.lineTo(box[3][0], box[3][1]);
-        ctx.closePath();
-        ctx.stroke();
-        ctx.fill();
       }
     });
   }
