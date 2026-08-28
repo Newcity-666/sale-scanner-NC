@@ -6,6 +6,7 @@
   <title>SALES SCAN SYSTEM</title>
   
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
   
   <style>
     * { box-sizing: border-box; }
@@ -213,11 +214,11 @@
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
-        area: { top: "20%", right: "10%", left: "10%", bottom: "20%" }
+        area: { top: "15%", right: "5%", left: "5%", bottom: "15%" }
       },
       locator: { patchSize: "medium", halfSample: false },
       numOfWorkers: navigator.hardwareConcurrency || 2,
-      decoder: { readers: ["ean_reader"], multiple: false },
+      decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader", "upc_reader"], multiple: false },
       locate: true
     }, function(err) {
       if (err) {
@@ -292,12 +293,13 @@
     input.value = '';
   }
 
-  function processAndDecodeImage(img) {
+  async function processAndDecodeImage(img) {
     const canvas = document.getElementById('photo-canvas');
     const ctx = canvas.getContext('2d');
     const previewBox = document.getElementById('photo-preview-box');
 
-    const MAX_WIDTH = 1000;
+    // ขยายเป็น 1600px เพื่อเก็บรายละเอียดเส้นบาร์โค้ดขนาดเล็ก หรือระยะใกล้จัด (Macro)
+    const MAX_WIDTH = 1600;
     let width = img.width;
     let height = img.height;
 
@@ -309,18 +311,47 @@
     canvas.width = width;
     canvas.height = height;
 
-    // เพิ่ม Filter ตกแต่งภาพให้บาร์โค้ดคมชัด อ่านค่าง่ายขึ้น
-    ctx.filter = 'contrast(160%) brightness(95%) grayscale(100%)';
+    ctx.filter = 'none';
     ctx.drawImage(img, 0, 0, width, height);
-
     previewBox.style.display = 'block';
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    // Tier 1: ใช้ Native BarcodeDetector (รองรับทุกมุม 360° ระดับ OS)
+    if ('BarcodeDetector' in window) {
+      try {
+        const detector = new BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e']
+        });
+        const barcodes = await detector.detect(canvas);
+        if (barcodes && barcodes.length > 0) {
+          onScanSuccess(barcodes[0].rawValue.trim());
+          return;
+        }
+      } catch (err) {
+        console.warn("Native BarcodeDetector ทำงานไม่สำเร็จ ถอยไปใช้ ZXing Engine:", err);
+      }
+    }
+
+    // Tier 2: ใช้ ZXing Library (แม่นยำสูง รองรับแนวตั้ง/แนวนอน/เอียง และระยะใกล้-ไกลได้ดีเยี่ยม)
+    if (window.ZXing) {
+      try {
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+        const result = await codeReader.decodeFromCanvas(canvas);
+        if (result && result.getText()) {
+          onScanSuccess(result.getText().trim());
+          return;
+        }
+      } catch (err) {
+        console.warn("ZXing ถอดรหัสภาพไม่สำเร็จ ถอยไปใช้ Quagga Fallback...", err);
+      }
+    }
+
+    // Tier 3: QuaggaJS Fallback (พร้อมสแกนภาพต้นฉบับ)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
     Quagga.decodeSingle({
       src: dataUrl,
       numOfWorkers: 0,
-      decoder: { readers: ["ean_reader"] },
+      decoder: { readers: ["ean_reader", "code_128_reader", "upc_reader"] },
       locate: true,
       locator: { patchSize: "large", halfSample: false }
     }, function(result) {
@@ -333,7 +364,7 @@
 
         onScanSuccess(barcodeText);
       } else {
-        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดถ่ายใหม่อีกครั้ง (เน้นระยะให้ชัดเจนและหลบแสงสะท้อน)");
+        alert("⚠️ ไม่พบ Barcode ในภาพ โปรดลองถ่ายใหม่อีกครั้ง โดยให้บาร์โค้ดสว่างและชัดเจน");
         hidePhotoPreview();
       }
     });
@@ -659,7 +690,7 @@
 
     const hasError = cart.some(item => item.error);
     if (hasError) {
-      alert("⚠️ มีสินค้าที่ไม่พบข้อมูล กรุณาตรวจสอบ Barcode อีกครั้ง");
+      alert("⚠️ มีสินค้าที่ไม่พบข้อมูลหรือเกิดข้อผิดพลาด กรุณาลบออกก่อนจบบิล");
       return;
     }
 
