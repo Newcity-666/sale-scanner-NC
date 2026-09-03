@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SALES SCAN SYSTEM</title>
+  <title>SALES SCAN</title>
   
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
   <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
@@ -96,7 +96,7 @@
 
 <div class="card">
   <div class="header-title">
-    <span class="header-text">SALES SCAN SYSTEM</span>
+    <span class="header-text">SALES SCAN</span>
     <button class="btn-header-history" onclick="openHistoryModal()">📜 ประวัติ</button>
   </div>
   
@@ -777,20 +777,31 @@
   function openSummaryModal() {
     const branch = document.getElementById('branch-input').value.trim();
     
-    // ตรวจสอบความถูกต้องของสาขาก่อนเปิด Modal
-    if (!isBranchValid(branch)) {
-      alert("⚠️ ไม่พบสาขาที่ระบุ กรุณาตรวจสอบชื่อสาขาอีกครั้ง");
+    // 1. ตรวจสอบช่องกรอกสาขา ถ้าว่างอยู่
+    if (!branch) {
+      alert("กรุณากรอกสาขา");
       return;
     }
 
-    if (cart.length === 0) { alert("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ"); return; }
+    // 2. ถ้าไม่ว่าง แต่ไม่เจอสาขา
+    if (!isBranchValid(branch)) {
+      alert("ไม่พบสาขาที่ระบุ กรุณาตรวจสอบชื่อสาขาอีกครั้ง");
+      return;
+    }
+
+    // 3. ตรวจสอบ Barcode ในบิล
+    if (cart.length === 0) { 
+      alert("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ"); 
+      return; 
+    }
 
     if (cart.some(item => item.loading)) {
-      alert("⚠️ กรุณารอให้ระบบดึงข้อมูลสินค้าเสร็จสิ้นก่อนจบบิล");
+      alert("⏳ กรุณารอให้ระบบดึงข้อมูลสินค้าเสร็จสิ้นก่อนจบบิล");
       return;
     }
+    
     if (cart.some(item => item.error)) {
-      alert("⚠️ มีสินค้าที่ไม่พบข้อมูลหรือเกิดข้อผิดพลาด กรุณาลบออกก่อนจบบิล");
+      alert("กรุณาตรวจสอบ Barcode");
       return;
     }
 
@@ -826,9 +837,14 @@
   function openHistoryModal() {
     const branch = document.getElementById('branch-input').value.trim();
     
-    // ตรวจสอบความถูกต้องของสาขาก่อนเปิด ดูประวัติ
+    // ตรวจสอบช่องกรอกสาขา
+    if (!branch) {
+      alert("กรุณากรอกสาขา");
+      return;
+    }
+
     if (!isBranchValid(branch)) { 
-      alert("⚠️ ไม่พบสาขาที่ระบุ กรุณาตรวจสอบชื่อสาขาอีกครั้ง"); 
+      alert("ไม่พบสาขาที่ระบุ กรุณาตรวจสอบชื่อสาขาอีกครั้ง"); 
       return; 
     }
 
@@ -888,9 +904,29 @@
   function submitBill() {
     const branch = document.getElementById('branch-input').value.trim();
     
-    // ตรวจสอบความถูกต้องของสาขาซ้ำอีกครั้งก่อนยิง API บันทึก
+    // 1. ตรวจสอบช่องกรอกสาขา
+    if (!branch) {
+      alert("กรุณากรอกสาขา");
+      closeSummaryModal();
+      return;
+    }
+
+    // 2. ตรวจสอบความถูกต้องของสาขา
     if (!isBranchValid(branch)) {
-      alert("⚠️ ไม่พบสาขาที่ระบุ กรุณาตรวจสอบชื่อสาขาอีกครั้ง");
+      alert("ไม่พบสาขาที่ระบุ กรุณาตรวจสอบชื่อสาขาอีกครั้ง");
+      closeSummaryModal();
+      return;
+    }
+
+    // 3. ตรวจสอบ Barcode ในบิลก่อนกดบันทึก
+    if (cart.length === 0) {
+      alert("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ");
+      closeSummaryModal();
+      return;
+    }
+
+    if (cart.some(item => item.error)) {
+      alert("กรุณาตรวจสอบ Barcode");
       closeSummaryModal();
       return;
     }
